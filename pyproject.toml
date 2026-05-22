@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cosmosim"
+version = "0.1.0"
+description = "Cosmological Particle-Mesh N-body simulation"
+authors = [{name = "Nils Thiessen"}, {name = "Philip Stoot"}]
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "numpy>=1.20",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov",
+    "black",
+    "py-spy"
+]
+
+[project.scripts]
+cosmosim = "cosmosim.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

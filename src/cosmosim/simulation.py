@@ -73,7 +73,7 @@ class Universe:
         status_str = status_map.get(self._status, "! Unknown !")
         return (
             f"{'='*50}\n"
-            f"Cosmological Particle-Mesh Simulation Object\n"
+            f"Cosmological Particle-Mesh N-Body Simulation Object\n"
             f"{'='*50}\n\n"
             f"Status: {status_str}\n"
             f"Time: t = {self.time_current:.4f} / {self.time_period[1]:.4f}\n"
