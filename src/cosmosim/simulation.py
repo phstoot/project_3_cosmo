@@ -154,7 +154,10 @@ class Universe:
     def plot_state(self):
         print(self)
         print("---> Plotting...")
-        pass
+        fig = plt.figure(figsize=(6,6)) 
+        self.ax = fig.add_subplot(projection='3d')
+        self.ax.scatter(self.positions[:,0], self.positions[:,1], self.positions[:,2], s=3, c='black') # type: ignore
+        plt.show()
 
     def save_checkpoint(self):
         pass
