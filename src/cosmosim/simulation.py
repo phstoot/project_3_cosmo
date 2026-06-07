@@ -16,6 +16,7 @@ import os
 import sys
 import json
 import warnings
+import itertools
 from time import time, sleep
 from pathlib import Path
 from matplotlib import scale
@@ -23,6 +24,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import pandas as pd
+from scipy import fft
 
 class Universe:
     def __init__(
@@ -43,13 +45,22 @@ class Universe:
         self.time_period = time_period
         self.redshift = redshift
         self.scale_factor = scale_factor
+        self.da = 0.001
+
+        # cosmo model
+        self.omega_m = 1
+        self.omega_k = 0
+        self.omega_l = 0
+        self.omega_r = 0
+        self.H_0 = 1
 
         # initialize
         self.potential = np.zeros((self.n_cells, self.n_cells, self.n_cells))
-        self.density = np.zeros((self.n_cells, self.n_cells, self.n_cells))
+        self.density =  np.zeros((self.n_cells, self.n_cells, self.n_cells))
+        self.acceleration_grid = np.zeros((self.n_cells, self.n_cells, self.n_cells, 3))
+        self.acceleration_particles = np.zeros((self.n_particles**3, 3))
         self.positions = self._init_positions()
-        self.momenta = np.zeros((self.n_particles, self.n_particles, self.n_particles))
-        self.time_current = 0
+        self.momenta = self._init_momenta()
         self._status = 0 # let's work with numerical codes: 0 = initialized, 1 = running and 2 = complete or smth like that
         
 
@@ -64,13 +75,15 @@ class Universe:
 # think of checks!
 
     def __repr__(self):
+        #TODO when code finished, fix this
         return (
             f"Universe(n_particles={self.n_particles}, "
             f"n_cells={self.n_cells}, redshift={self.redshift}, scale_factor={self.scale_factor},"
-            f"time_current={self.time_current}, _status={self._status})"
+            f"time_current=TODO, _status={self._status})"
             )
     
     def __str__(self):
+        #TODO when code finished, fix this
         status_map = {0: "Initialized", 1: "Running", 2: "Complete"}
         status_str = status_map.get(self._status, "! Unknown !")
         return (
@@ -78,7 +91,7 @@ class Universe:
             f"Cosmological Particle-Mesh N-Body Simulation Object\n"
             f"{'='*50}\n\n"
             f"Status: {status_str}\n"
-            f"Time: t = {self.time_current:.4f} / {self.time_period[1]:.4f}\n"
+            f"Time: t = ??? / {self.time_period[1]:.4f}\n"
             f"Redshift: z = {self.redshift:.4f}\n"
             f"Scale factor: a = {self.scale_factor:.4f}\n\n"
             f"Parameters:\n"
@@ -87,7 +100,7 @@ class Universe:
             f"  Timestep: {self.delta_t}\n"
         )
 
-    def _init_positions(self):
+    def _init_positions(self) -> np.ndarray:
         # For a realistic simulation, we need to either write a sophisticated code to generate IC's, or use other code for this. 
         # For now, start with regularly placed particles throughout the volume and give them small random deviations
         positions = []
@@ -107,39 +120,87 @@ class Universe:
         for p in positions:
             p += rng.random(3)
         return positions
-
-    def density_npg(self):
-        """Method to interpolate the mesh density field from the current particle positions, using the Nearest Grid Point (NPG) method.
+    
+    def _init_momenta(self) -> np.ndarray:
+        momenta = np.zeros((self.n_particles**3, 3))
+        # Do an initial half-kick back so that momenta is on correct scale-factor for leapfrog integration
+        self.interpolate_density()
+        self.poisson_solver()
+        self.potential_to_acceleration()
+        self.interpolate_acceleration()
+        momenta -= 0.5 * self.timestep_factor(self.scale_factor) * self.acceleration_particles * self.da 
+        return momenta
+    
+    def interpolate_density(self, method: str ='ngp') -> None:
+        """Interpolate the mesh density field from the current particle positions, using the Nearest Grid Point (NPG) method.
         This simply means giving the parent grid cell the mass of the particle.
         """
-        for i, p in enumerate(self.positions):
-           cell_index = p.astype(int)
-           self.density[tuple(cell_index)] += self.mass
+        self.density = np.zeros((self.n_cells, self.n_cells, self.n_cells)) 
+        if method == 'ngp':
+            self.method = 'ngp'
+            for pos in self.positions:
+                i, j, k = pos.astype(int)
+                self.density[i, j, k] += self.mass
+        elif method =='cic':
+            raise RuntimeError('Not implemented yet')
+        else:
+            raise RuntimeError("Unknown method provided. Options are: 'ngp'")
 
-    def density_cic(self):
-        """Method to interpolate the mesh density field from the current particle positions, using the Cloud In Cell (CIC) method.
+    def poisson_solver(self) -> None:
+        """Solve Poisson's equation with the estimated density and calculate the potential
         """
-        pass
+        # get overdensity
+        del_r = self.density - 1
+        # solve poisson with FFT
+        rho_k = fft.fftn(del_r)
+        phi_k = self.greenfunction() * rho_k
+        phi_r = fft.ifftn(phi_k).real 
+        self.potential = phi_r
 
-    def poisson_solver(self):
-        """Method to solve Poisson's equation with the estimated density and calculate the potential
+    def potential_to_acceleration(self) -> None:
+        """The gravity is the negative gradient of the potential. Use central finite difference formula to estimate 
+        gradient of potential at cell center from neighbouring cells. 
         """
-        pass
+        for i, j, k in itertools.product(range(self.n_cells), repeat=3): 
+            gx = -(self.potential[(i+1)%self.n_cells, j, k] - self.potential[(i-1)%self.n_cells, j, k]) * 0.5
+            gy = -(self.potential[i, (j+1)%self.n_cells, k] - self.potential[i, (j-1)%self.n_cells, k]) * 0.5
+            gz = -(self.potential[i, j, (k+1)%self.n_cells] - self.potential[i, j, (k-1)%self.n_cells]) * 0.5
+            self.acceleration_grid[i, j, k, 0] = gx
+            self.acceleration_grid[i, j, k, 1] = gy
+            self.acceleration_grid[i, j, k, 2] = gz
 
-    def update_momenta(self):
-        """Method to update the momenta of the particles in the simulation, called in step
+    def interpolate_acceleration(self) -> None:
+        """Interpolate acceleration on grid back to particles using same scheme as 
+        with density assignment.
+        """ 
+        for pid, pos in enumerate(self.positions):
+            i, j, k = pos.astype(int)
+            g = self.acceleration_grid[i, j, k, :]
+            self.acceleration_particles[pid, :] = g
+
+    def update_momenta(self) -> None:
+        """Method to update the momenta of the particles in the simulation, called in step. Goes from n-1/2 to n+1/2
         """
-        pass
+        self.momenta += self.timestep_factor(self.scale_factor) * self.acceleration_particles * self.da
 
-    def update_positions(self):
-        """Method to update the positions of the particles in the simulation, called in step
+    def update_positions(self) -> None:
+        """Method to update the positions of the particles in the simulation, called in step. Goes from n to n+1
         """
-        pass
+        self.positions += (
+        (self.timestep_factor(self.scale_factor + 0.5*self.da) * self.momenta) / (self.scale_factor + 0.5*self.da)**2
+        ) * self.da
+        self.positions %= self.n_cells
 
-    def step(self):
+    def step(self) -> None:
         """Step function to integrate the simulation one step forward in time. More details to follow
         """
-        pass
+        self.interpolate_density()
+        self.poisson_solver()
+        self.potential_to_acceleration()
+        self.interpolate_acceleration()
+        self.update_momenta()
+        self.update_positions()
+        self.scale_factor += self.da
 
     def run(self):
         """Main method to run simulation instance
@@ -151,11 +212,43 @@ class Universe:
         """
         pass
 
-    def plot_state(self):
+    def greenfunction(self) -> np.ndarray:
+        L = self.n_cells
+        G_k = np.zeros((self.n_cells, self.n_cells, self.n_cells))
+        # we iterate over three axes of cell grid
+        for l, m, n in itertools.product(range(self.n_cells), repeat=3):
+            if l == m == n == 0:
+                G_k[l, m, n] = 0 
+            else:
+                G_k[l, m, n] = - (3/8)*(self.omega_m / self.scale_factor) / (
+                    np.sin((np.pi * l)/ L)**2 + np.sin((np.pi * m)/ L)**2 + np.sin((np.pi * n)/ L)**2
+                )
+        return G_k
+    
+    def timestep_factor(self, scale_factor : float) -> float:
+        """Calculate the timestep - scalefactor conversion f(a) to use for integration
+
+        Parameters
+        ----------
+        scale_factor : float
+            The scale factor a to evaluate f(a) for. This differs for momenta and positions in a timestep due to leapfrog scheme, calling for custom input here.
+        
+        Returns
+        -------
+        f : float
+            Conversion factor
+        """
+        f = (
+            (self.omega_m + self.omega_k * scale_factor + self.omega_l * scale_factor**3) / scale_factor
+        ) ** -0.5
+        return f
+
+    def plot(self):
         print(self)
         print("---> Plotting...")
         fig = plt.figure(figsize=(6,6)) 
         self.ax = fig.add_subplot(projection='3d')
+        self.ax.set_aspect('equal')
         self.ax.scatter(self.positions[:,0], self.positions[:,1], self.positions[:,2], s=3, c='black') # type: ignore
         plt.show()
 
