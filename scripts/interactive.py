@@ -2,22 +2,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 from cosmosim.simulation import Universe
 
-test = Universe()
-print(test)
+# analyse profiling results
+import pstats
+
+stats = pstats.Stats("results/profile.prof")
+stats.sort_stats("cumulative").print_stats(30)
 
 
-n_cells = 10
-n_particles = 5
 
-positions = []
-fill_axis = np.linspace(0, n_cells, n_particles, endpoint=False, dtype=float)
-
-for i in range(n_particles):
-    for j in range(n_particles):
-        for k in range(n_particles):
-            x = fill_axis[i]
-            y = fill_axis[j]
-            z = fill_axis[k]
-            positions.append([x, y, z])
-
-positions = np.array(positions)
+if __name__ == '__main__':
+    test = Universe()
+    test.run(steps=100)
