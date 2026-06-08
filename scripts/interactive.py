@@ -12,4 +12,5 @@ stats.sort_stats("cumulative").print_stats(30)
 
 if __name__ == '__main__':
     test = Universe()
-    test.run(steps=100)
+    test.run(steps=900)
+    test.plot()

@@ -25,6 +25,8 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import pandas as pd
 from scipy import fft
+from cosmosim.utils import potential_to_acceleration_numba
+import cProfile
 
 class Universe:
     def __init__(
@@ -117,7 +119,17 @@ class Universe:
         return positions
     
     def _init_momenta(self) -> np.ndarray:
-        """Initialize momenta half a timestep backwards to prepare for leapfrog integration scheme.
+        """Compute initial momenta with a backward half-kick for leapfrog synchronisation.
+
+        Side effects
+        ------------
+        Populates self.density, self.potential, self.acceleration_grid, and
+        self.acceleration_particles as a by-product of computing g₀. These are left
+        in a valid state and reused on the first call to step().
+
+        Returns
+        -------
+        momenta : np.ndarray, shape (n_particles**3, 3)
         """
         momenta = np.zeros((self.n_particles**3, 3))
         # Do an initial half-kick back so that momenta is on correct scale-factor for leapfrog integration
@@ -131,13 +143,12 @@ class Universe:
     def interpolate_density(self) -> None:
         """Interpolate the mesh density field from the current particle positions, using the Nearest Grid Point (NPG) method.
         This simply means giving the parent grid cell the mass of the particle.
+        comment on speed: we use numpy vectorization. np.add.at is the equivalent of +=.
         """
         self.density = np.zeros((self.n_cells, self.n_cells, self.n_cells)) 
         if self.interpolate_method == 'ngp':
-            self.method = 'ngp'
-            for pos in self.positions:
-                i, j, k = pos.astype(int)
-                self.density[i, j, k] += self.mass
+            parent_cell = self.positions.astype(int)
+            np.add.at(self.density, (parent_cell[:,0], parent_cell[:,1], parent_cell[:,2]), self.mass)
         elif self.interpolate_method =='cic':
             raise RuntimeError('Not implemented yet')
         else:
@@ -156,29 +167,34 @@ class Universe:
         phi_r = fft.ifftn(phi_k).real #type: ignore 
         self.potential = phi_r
 
-    
-    def potential_to_acceleration(self) -> None: #TODO: this is the main bottleneck of the simulation. Speed up here with Numba
+    def potential_to_acceleration(self, numba=True) -> None: #TODO: this is the main bottleneck of the simulation. Speed up here with Numba
         """The gravity is the negative gradient of the potential. Use central finite difference formula to estimate 
         gradient of potential at cell center from neighbouring cells. 
         """
-        phi = self.potential
-        for i, j, k in itertools.product(range(self.n_cells), repeat=3): 
-            gx = -(phi[(i+1)%self.n_cells, j, k] - phi[(i-1)%self.n_cells, j, k]) * 0.5
-            gy = -(phi[i, (j+1)%self.n_cells, k] - phi[i, (j-1)%self.n_cells, k]) * 0.5
-            gz = -(phi[i, j, (k+1)%self.n_cells] - phi[i, j, (k-1)%self.n_cells]) * 0.5
-            self.acceleration_grid[i, j, k, 0] = gx
-            self.acceleration_grid[i, j, k, 1] = gy
-            self.acceleration_grid[i, j, k, 2] = gz
+        if numba:
+            potential_to_acceleration_numba(
+                self.potential,
+                self.acceleration_grid,
+                self.n_cells
+            )
+        else:
+            phi = self.potential
+            for i, j, k in itertools.product(range(self.n_cells), repeat=3): 
+                gx = -(phi[(i+1)%self.n_cells, j, k] - phi[(i-1)%self.n_cells, j, k]) * 0.5
+                gy = -(phi[i, (j+1)%self.n_cells, k] - phi[i, (j-1)%self.n_cells, k]) * 0.5
+                gz = -(phi[i, j, (k+1)%self.n_cells] - phi[i, j, (k-1)%self.n_cells]) * 0.5
+                self.acceleration_grid[i, j, k, 0] = gx
+                self.acceleration_grid[i, j, k, 1] = gy
+                self.acceleration_grid[i, j, k, 2] = gz
 
     def interpolate_acceleration(self) -> None:
         """Interpolate acceleration on grid back to particles using same scheme as 
         with density assignment.
+        Comment on speed: we don't use numba but numpy vectorization which is quick enough here.
         """ 
         if self.interpolate_method == 'ngp':
-            for pid, pos in enumerate(self.positions):
-                i, j, k = pos.astype(int)
-                g = self.acceleration_grid[i, j, k, :]
-                self.acceleration_particles[pid, :] = g
+            parent_cell = self.positions.astype(int)
+            self.acceleration_particles = self.acceleration_grid[parent_cell[:,0], parent_cell[:,1], parent_cell[:,2], :]
         elif self.interpolate_method =='cic':
             raise RuntimeError('Not implemented yet')
         else:
@@ -197,23 +213,29 @@ class Universe:
         ) * self.delta_a
         self.positions %= self.n_cells
 
-    def step(self) -> None:
+    def step(self, numba=True) -> None:
         """Step function to integrate the simulation one step forward in time. More details to follow
         """
         self.interpolate_density()
         self.poisson_solver()
-        self.potential_to_acceleration()
+        self.potential_to_acceleration(numba=numba)
         self.interpolate_acceleration()
         self.update_momenta()
         self.update_positions()
         self.scale_factor += self.delta_a
 
-    def run(self, steps : int = 900) -> None:
+    def run(self, steps : int = 900, numba=True) -> None:
         """Main method to run simulation instance
         """
         self._status = 1
+        print('Starting cosmological particle-mesh simulation...')
+        if numba:
+            print('numba go fast!')
+            self.compile_numba()
+        else:
+            print('Numba disabled. Falling back to pure python loops.')
         for _ in tqdm(range(steps)):
-            self.step()
+            self.step(numba=numba)
         self._status = 2
         print('Done, bye.')
 
@@ -251,6 +273,15 @@ class Universe:
             (self.omega_m + self.omega_k * scale_factor + self.omega_lambda * scale_factor**3) / scale_factor
         ) ** -0.5
         return f
+    
+    def compile_numba(self):
+        """Do a dummy run to warm up
+        """
+        potential_to_acceleration_numba(
+            np.zeros((self.n_cells, self.n_cells, self.n_cells)),
+            np.zeros((self.n_cells, self.n_cells, self.n_cells, 3)),
+            self.n_cells
+        )
 
     def plot(self):
         print(self)
