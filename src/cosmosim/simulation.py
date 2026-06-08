@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import pandas as pd
 from scipy import fft
-from cosmosim.utils import potential_to_acceleration_numba
+from cosmosim.utils import potential_to_acceleration_numba, interpolate_density_cic_numba, interpolate_acceleration_cic_numba
 import cProfile
 
 class Universe:
@@ -37,7 +37,7 @@ class Universe:
             scale_factor: float     = 0.1,
             delta_a: float          = 0.001, # decide later, we also need to change to use scale factor as timestep
             time_period: tuple      = (0, 10),
-            interpolate_method: str = 'ngp'
+            interpolate_method: str = 'cic'
     ):
         
         # assign attributes
@@ -63,9 +63,13 @@ class Universe:
         self.density                = np.zeros((self.n_cells, self.n_cells, self.n_cells))
         self.acceleration_grid      = np.zeros((self.n_cells, self.n_cells, self.n_cells, 3))
         self.acceleration_particles = np.zeros((self.n_particles**3, 3))
-        self.positions              = self._init_positions()
-        self.momenta                = self._init_momenta()
+        self.positions              = np.zeros((self.n_particles**3, 3))   #= self._init_positions()
+        self.momenta                = np.zeros((self.n_particles**3, 3))   #= self._init_momenta()
         self._status                = 0 # let's work with numerical codes: 0 = initialized, 1 = running and 2 = complete or smth like that
+
+        # storage
+        self.positions_hist         = []
+        self.momenta_hist           = []
 
 
 # think of checks!
@@ -97,7 +101,7 @@ class Universe:
         )
 
     def _init_positions(self) -> np.ndarray:
-        """Initialize particle positions. For now, we use random perturbations. We should use appropriate initial conditions
+        """Initialize particle positions. For now, we use random perturbations. We should use appropriate initial conditions.
         """
         positions = []
         fill_axis = np.linspace(0, self.n_cells, self.n_particles, endpoint=False)
@@ -113,11 +117,11 @@ class Universe:
         
         rng = np.random.default_rng()
         spacing = self.n_cells / self.n_particles
-        for p in positions:
-            p += rng.uniform(-0.5*spacing, 0.5*spacing, 3)
-            p %= self.n_cells 
+        self.displacement = rng.normal(loc=0.0, scale= 1.3* spacing, size=(self.n_particles**3, 3))
+        positions += self.displacement
+        positions %= self.n_cells
         return positions
-    
+
     def _init_momenta(self) -> np.ndarray:
         """Compute initial momenta with a backward half-kick for leapfrog synchronisation.
 
@@ -131,28 +135,49 @@ class Universe:
         -------
         momenta : np.ndarray, shape (n_particles**3, 3)
         """
-        momenta = np.zeros((self.n_particles**3, 3))
-        # Do an initial half-kick back so that momenta is on correct scale-factor for leapfrog integration
-        self.interpolate_density()
-        self.poisson_solver()
-        self.potential_to_acceleration()
-        self.interpolate_acceleration()
-        momenta -= 0.5 * self.timestep_factor(self.scale_factor) * self.acceleration_particles * self.delta_a
+        # for initial setup
+        # momenta = np.zeros((self.n_particles**3, 3))
+        # # Do an initial half-kick back so that momenta is on correct scale-factor for leapfrog integration
+        # self.interpolate_density()
+        # self.poisson_solver()
+        # self.potential_to_acceleration()
+        # self.interpolate_acceleration()
+        # momenta -= 0.5 * self.timestep_factor(self.scale_factor) * self.acceleration_particles * self.delta_a
+
+        # following random gaussian seeds:
+        momenta = self.displacement * self.scale_factor**1.5
         return momenta
     
+    def init_zeldovich(self):
+        """Set up a 1D sine wave in x, to test the simulation against the known analytic solution"""
+        # 1) compute wave parameters
+        a_cross = 10 * self.scale_factor
+        k = 2 * np.pi / self.n_cells
+        A = -1.0 / (a_cross * k)   # D+(a) = a for EdS (see paper for formula)
+
+        # 2) set positions
+        q = np.linspace(0, self.n_cells, self.n_particles, endpoint=False)
+        x_displaced = q + self.scale_factor * A * np.sin(k * q)  # D+(a_ini) = a_ini
+
     def interpolate_density(self) -> None:
         """Interpolate the mesh density field from the current particle positions, using the Nearest Grid Point (NPG) method.
         This simply means giving the parent grid cell the mass of the particle.
-        comment on speed: we use numpy vectorization. np.add.at is the equivalent of +=.
+        comment on speed: for ngp we use numpy vectorization. np.add.at is the equivalent of +=.
         """
-        self.density = np.zeros((self.n_cells, self.n_cells, self.n_cells)) 
+        self.density.fill(0.0)
         if self.interpolate_method == 'ngp':
-            parent_cell = self.positions.astype(int)
+            parent_cell = np.round(self.positions).astype(int) % self.n_cells 
             np.add.at(self.density, (parent_cell[:,0], parent_cell[:,1], parent_cell[:,2]), self.mass)
         elif self.interpolate_method =='cic':
-            raise RuntimeError('Not implemented yet')
+            interpolate_density_cic_numba(
+                self.positions, 
+                self.density, 
+                self.n_particles, 
+                self.n_cells, 
+                self.mass
+                )
         else:
-            raise RuntimeError("Unknown method provided. Options are: 'ngp'")
+            raise RuntimeError("Unknown method provided. Options are: 'ngp' or 'cic'")
 
     def poisson_solver(self) -> None:
         """Solve Poisson's equation with the estimated density and calculate the potential. We first calculate the overdensity delta(r), then
@@ -160,14 +185,22 @@ class Universe:
         space.
         """
         del_r = self.density - 1
-        rho_k = fft.fftn(del_r)
+        del_k = fft.fftn(del_r)
         G_k = -(3/8) * (self.omega_m / self.scale_factor) * self._G_denom**-1
         G_k[0, 0, 0] = 0 # handle singularity
-        phi_k = G_k * rho_k #type: ignore
-        phi_r = fft.ifftn(phi_k).real #type: ignore 
+        phi_k = G_k * del_k #type: ignore
+        phi_r = fft.ifftn(phi_k).real #type: ignore
+
         self.potential = phi_r
 
-    def potential_to_acceleration(self, numba=True) -> None: #TODO: this is the main bottleneck of the simulation. Speed up here with Numba
+    def normalize_test(self):
+        """Follow the routine of poisson_solver but transform back to check normalization."""
+        del_r = self.density - 1
+        del_k = fft.fftn(del_r)
+        del_r_back = fft.ifftn(del_k).real #type: ignore
+        return del_r, del_r_back
+
+    def potential_to_acceleration(self, numba=True) -> None:
         """The gravity is the negative gradient of the potential. Use central finite difference formula to estimate 
         gradient of potential at cell center from neighbouring cells. 
         """
@@ -190,15 +223,21 @@ class Universe:
     def interpolate_acceleration(self) -> None:
         """Interpolate acceleration on grid back to particles using same scheme as 
         with density assignment.
-        Comment on speed: we don't use numba but numpy vectorization which is quick enough here.
+        Comment on speed: for ngp we don't use numba but numpy vectorization which is quick enough here.
         """ 
         if self.interpolate_method == 'ngp':
-            parent_cell = self.positions.astype(int)
+            parent_cell = np.round(self.positions).astype(int) % self.n_cells
             self.acceleration_particles = self.acceleration_grid[parent_cell[:,0], parent_cell[:,1], parent_cell[:,2], :]
         elif self.interpolate_method =='cic':
-            raise RuntimeError('Not implemented yet')
+            interpolate_acceleration_cic_numba(
+                self.positions,
+                self.acceleration_particles,
+                self.acceleration_grid,
+                self.n_particles,
+                self.n_cells
+            )
         else:
-            raise RuntimeError("Unknown interpolation method provided. Options are: 'ngp'") 
+            raise RuntimeError("Unknown interpolation method provided. Options are: 'ngp' or 'cic'") 
 
     def update_momenta(self) -> None:
         """Method to update the momenta of the particles in the simulation, called in step. Goes from n-1/2 to n+1/2
@@ -224,18 +263,28 @@ class Universe:
         self.update_positions()
         self.scale_factor += self.delta_a
 
-    def run(self, steps : int = 900, numba=True) -> None:
+    def run(self, steps : int = 900, numba=True, store=False) -> None:
         """Main method to run simulation instance
         """
         self._status = 1
-        print('Starting cosmological particle-mesh simulation...')
+        print('Starting cosmological particle-mesh simulation...\n')
+        
         if numba:
             print('numba go fast!')
             self.compile_numba()
         else:
             print('Numba disabled. Falling back to pure python loops.')
-        for _ in tqdm(range(steps)):
-            self.step(numba=numba)
+        
+        if store == True:
+            print('Storing positions and momenta..')
+            for _ in tqdm(range(steps)):
+                self.positions_hist.append(self.positions)
+                self.momenta_hist.append(self.momenta)
+                self.step(numba=numba)
+        else:
+            for _ in tqdm(range(steps)):
+                self.step(numba=numba) 
+       
         self._status = 2
         print('Done, bye.')
 
@@ -282,6 +331,20 @@ class Universe:
             np.zeros((self.n_cells, self.n_cells, self.n_cells, 3)),
             self.n_cells
         )
+        interpolate_density_cic_numba(
+            np.zeros((self.n_particles**3, 3)),
+            np.zeros((self.n_cells, self.n_cells, self.n_cells)),
+            self.n_particles,
+            self.n_cells,
+            self.mass
+        )
+        interpolate_acceleration_cic_numba(
+            np.zeros((self.n_particles**3, 3)), 
+            np.zeros((self.n_particles**3, 3)),
+            np.zeros((self.n_cells, self.n_cells, self.n_cells, 3)),
+            self.n_particles,
+            self.n_cells
+        )
 
     def plot(self):
         print(self)
@@ -289,8 +352,12 @@ class Universe:
         fig = plt.figure(figsize=(9,9)) 
         self.ax = fig.add_subplot(projection='3d')
         self.ax.set_aspect('equal')
+        self.ax.set_xlabel('x')
+        self.ax.set_ylabel('y')
+        self.ax.set_zlabel('z')
         self.ax.scatter(self.positions[:,0], self.positions[:,1], self.positions[:,2], s=1, c='black') # type: ignore
         plt.show()
+        plt.close('all')
 
     def save_checkpoint(self):
         pass
