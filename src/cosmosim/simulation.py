@@ -46,19 +46,22 @@ class Universe:
         self.mass                   = self.n_cells**3 / self.n_particles**3 # normalize density field
         self.time_period            = time_period
         self.redshift               = redshift
+        self.scale_factor_start     = scale_factor
         self.scale_factor           = scale_factor
         self.delta_a                = delta_a
         self.interpolate_method     = interpolate_method
 
         # cosmo model
-        self.omega_m                = 1
-        self.omega_k                = 0
-        self.omega_lambda           = 0
+        self.omega_m                = 1 # all matter 
+        self.omega_c                = 0.95 # cdm fraction
+        self.omega_b                = 0.05 # baryon fraction of total matter
+        self.omega_k                = 0 # curvature
+        self.omega_lambda           = 0 # dark energy
         self.omega_r                = 0
         self.H_0                    = 1
 
         # initialize
-        self._G_denom               = self._greenfunc_denom() # cache for speedup
+        self._G_denom               = self._greenfunc_denom() # cache for speedup, stays the same for all simulation
         self.potential              = np.zeros((self.n_cells, self.n_cells, self.n_cells))
         self.density                = np.zeros((self.n_cells, self.n_cells, self.n_cells))
         self.acceleration_grid      = np.zeros((self.n_cells, self.n_cells, self.n_cells, 3))
@@ -69,7 +72,7 @@ class Universe:
 
         # storage
         self.positions_hist         = []
-        self.momenta_hist           = []
+        self.momenta_hist           = [] # not needed right?
 
 
 # think of checks!
@@ -148,7 +151,7 @@ class Universe:
         momenta = self.displacement * self.scale_factor**1.5
         return momenta
     
-    def init_zeldovich(self):
+    def init_zeldovich(self): #TODO not finished
         """Set up a 1D sine wave in x, to test the simulation against the known analytic solution"""
         # 1) compute wave parameters
         a_cross = 10 * self.scale_factor
@@ -346,6 +349,84 @@ class Universe:
             self.n_cells
         )
 
+    def plane_wave_1D_test(self, a_ini, a_cross, interpolate_method='cic'):
+        """Test the simulation by initializing a 1D plane wave in Zeldovich Approximation perturbation. 
+        The analytic solution is plotted alongside numerical results for comparison. Calling this method will reset 
+        and overwrite arrays, so simulation results will be lost.
+        """
+        print('Starting a 1D sine wave collapse test... Warning: this overwrites parameters and resets the simulation results!')
+        self.scale_factor_start = a_ini
+        self.scale_factor = a_ini
+        sheet_size = self.n_particles**2
+        steps = int((a_cross - a_ini) / self.delta_a)
+        self.interpolate_method = interpolate_method
+        
+        # compute wave parameters
+        k_wave = 2 * np.pi / self.n_cells
+        A = 1.0 / (a_cross * k_wave)   # D+(a) = a for EdS (see paper for formula)
+
+        # analytic solution
+        q = np.linspace(0, self.n_cells, self.n_particles, endpoint=False)
+
+        # set positions and momenta in x
+        x_displaced = q + a_ini * A * np.sin(k_wave * q)  # D+(a_ini) = a_ini
+        a_half = a_ini - 0.5 * self.delta_a
+        p_displaced = a_half**(1.5) * A * np.sin(k_wave * q)   # only x-component non-zero
+
+        # fill arrays of positions and momenta
+        positions = []
+        momenta = []
+        for i in range(self.n_particles):
+            for j in range(self.n_particles):
+                for k in range(self.n_particles):
+                    xx = x_displaced[i]
+                    xy = q[j]
+                    xz = q[k]
+                    positions.append([xx, xy, xz])
+
+                    px = p_displaced[i]
+                    py = 0
+                    pz = 0
+                    momenta.append([px, py, pz])
+        positions = np.array(positions)
+        momenta = np.array(momenta)
+        for p in positions:
+            p %= self.n_cells
+        
+        self.positions = positions
+        self.momenta = momenta
+
+        x_exact_ini = q + a_ini * A * np.sin(k_wave * q)
+        p_exact_ini = a_ini**1.5 * A * np.sin(k_wave * q)
+        x_sim_ini = self.positions[::sheet_size, 0]
+        p_sim_ini = self.momenta[::sheet_size, 0]
+
+        plt.plot(x_exact_ini, p_exact_ini, label='analytic', zorder=-1)
+        plt.scatter(x_sim_ini, p_sim_ini, label='numerical', marker='d', c='black')
+        plt.legend()
+        plt.xlabel(r'$x$')
+        plt.ylabel(r'$p$')
+        plt.title(f'ZA test: 1D sine wave collapse\na = {a_ini:.1f}')
+        plt.show()
+        plt.close()
+
+        self.run(steps=steps)
+
+        x_exact_cross = q + a_cross * A * np.sin(k_wave * q)
+        p_exact_cross = a_cross**1.5 * A * np.sin(k_wave * q)
+        x_sim_cross = self.positions[::sheet_size, 0]
+        p_sim_cross = self.momenta[::sheet_size, 0]
+ 
+        plt.plot(x_exact_cross, p_exact_cross, label='analytic', zorder=-1)
+        plt.scatter(x_sim_cross, p_sim_cross, label='numerical', marker='d', c='black')
+        plt.legend()
+        plt.xlabel(r'$x$')
+        plt.ylabel(r'$p$')
+        plt.title(f'ZA test: 1D sine wave collapse\na = {a_cross:.1f}')
+        plt.show()
+        plt.close()
+
+
     def plot(self):
         print(self)
         print("---> Plotting...")
@@ -355,7 +436,7 @@ class Universe:
         self.ax.set_xlabel('x')
         self.ax.set_ylabel('y')
         self.ax.set_zlabel('z')
-        self.ax.scatter(self.positions[:,0], self.positions[:,1], self.positions[:,2], s=1, c='black') # type: ignore
+        self.ax.scatter(self.positions[:,0], self.positions[:,1], self.positions[:,2], s=0.1, c='black') # type: ignore
         plt.show()
         plt.close('all')
 
