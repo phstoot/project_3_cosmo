@@ -131,3 +131,110 @@ def interpolate_acceleration_cic_numba(positions, acceleration_particles, accele
             acceleration_grid[i, jp, kp, :] * tx * dy * dz +
             acceleration_grid[ip, jp, kp, :] * dx * dy * dz 
         )
+
+def eh97_power_spectrum(
+        k_hMpc,
+        h,
+        omega_m,
+        omega_b,
+        omega_nu,
+        n,
+        A,
+        N_nu,
+        T_cmb
+):
+    """Computes the Eisenstein & Hu (1997) master transfer function and linear power spectrum
+    running smoothly through baryon suppression and neutrino free-streaming.
+    
+    Parameters
+    -----------
+      k_hMpc   : array_like, wavenumber in units of h/Mpc.
+      omega_m  : float, total matter density parameter (Omega_c + Omega_b + Omega_nu)
+      omega_b  : float, baryon density parameter
+      omega_nu : float, massive neutrino density parameter
+      h        : float, Hubble parameter (H0 / 100)
+      n        : float, primordial spectral index (typically 1.0)
+      A        : float, overall scale-independent normalization factor
+      N_nu     : int, number of degenerate massive neutrino species
+      T_cmb    : float, CMB temperature today in Kelvin (default 2.728K)
+    
+    Returns
+    -------
+      Pk       : array_like, linear power spectrum
+    """
+    # convert k from comoving to physical, as required by the equations
+    k = k_hMpc * h
+
+    # Guard against log(0) or division by zero at the exact DC (k=0) mode
+    k = np.where(k == 0, 1e-10, k)
+
+    # compute cosmological fractions
+    omega_c = omega_m - omega_b - omega_nu
+    f_c = omega_c / omega_m
+    f_b = omega_b / omega_m
+    f_nu = omega_nu / omega_m
+    f_cb = f_c + f_b
+    f_nub = f_nu + f_b
+
+    theta27 = T_cmb / 2.7
+    omhh = omega_m * h**2
+    obhh = omega_b * h**2
+
+    # Eq 1: redshift of matter-radiation equality
+    z_eq = 2.5e4 * omhh * theta27**-4
+
+    # Eq 2,3: drag release redshift parameters
+    b1 = 0.313 * omhh**-0.419 * (1.0 + 0.607 * omhh**0.674)
+    b2 = 0.238 * omhh**0.223
+    z_d = 1291 * omhh**0.251 / (1.0 + 0.659 * omhh**0.828) * (1 + b1 * obhh**b2)
+    y_d = (1 + z_eq) / (1 + z_d)
+
+    # Eq 4: sound horizon
+    s = 44.5 * np.log(9.83 / omhh) / np.sqrt(1 + 10 * obhh**0.75)
+
+    # Eq 5: dimensionless scale normalized by equality horizon
+    q = k * theta27**2 / omhh # Mpc^-1?
+
+    # Eq 11: growth suppression indices
+    p_c = 0.25 * (5 - np.sqrt(1 + 24* f_c))
+    p_cb = 0.25 * (5 - np.sqrt(1 + 24* f_cb))
+
+    # Eq 15: small-scale suppression factor alpha_nu
+    alpha_nu = (f_c / f_cb) * ((5 - 2*(p_c + p_cb)) / (5 - 4 * p_cb)) * \
+               ((1 - 0.553 * f_nub + 0.126 * f_nub**3) / (1 - 0.193 * np.sqrt(f_nu * N_nu) + 0.169 * f_nu * N_nu**0.2)) * \
+               (1 + y_d)**(p_cb - p_c) * \
+               (1 + 0.5 * (p_c - p_cb) * (1 + 1 / ((3 - 4 * p_c) * (7 - 4 * p_cb))) * (1 + y_d)**-1 )
+    
+    # Eq 16-17: Gamma shape parameter
+    gamma_eff = omhh * (
+        np.sqrt(alpha_nu) + (1 - np.sqrt(alpha_nu)) / (1 + (0.43 * k * s)**4)
+        )
+    q_eff = (k * theta27**2) / gamma_eff # Mpc^-1?
+
+    # Eq 18-21: suppression Transfer function
+    beta_c = (1 - 0.949 * f_nub)**-1
+    C = 14.4 + (325 / (1 + 60.5 * q_eff**1.08))
+    L = np.log(np.e + 1.84 * beta_c * np.sqrt(alpha_nu) * q_eff)
+
+    T_sup = L / (L + C * q_eff**2)
+
+    # Eq 22-23: free streaming correction factor
+    if f_nu > 0:
+        q_nu = 3.92 * q * np.sqrt(N_nu / f_nu)
+        Bk = 1.0 + (
+            (1.24 * f_nu**0.64 * N_nu**(0.3 + 0.6 * f_nu)) / (q_nu**-1.6 + q_nu**0.8)
+        )
+    else:
+        Bk = 1.0
+
+    # Eq 24: master transfer function
+    T_master = T_sup * Bk
+
+    # We absorb scale-dependent growth functions into amplitude A, and get the linear power spectrum
+    Pk = A * (k_hMpc**n) * T_master**2
+
+    return Pk
+
+def analytic_zeldovich(q, k_wave, a):
+
+    return x, p
