@@ -288,8 +288,8 @@ class Universe:
             print('Storing positions and momenta..')
             for _ in tqdm(range(steps)):
                 self.positions_hist.append(self.positions.copy())
-                self.momenta_hist.append(self.momenta.copy())
-                # self.density_hist.append(self.density.copy())
+                # self.momenta_hist.append(self.momenta.copy())
+                self.density_hist.append(self.density.copy())
                 self.scale_factor_hist.append(self.scale_factor) ## Need to copy instead of adding this reference here
                 self.step(numba=numba)
         else:
@@ -474,12 +474,16 @@ class Universe:
             "cosmo",
             [
                 (0.00, "#000000"),  # black
-                (0.15, "#001a66"),  # dark blue
-                (0.35, "#0066ff"),  # blue
+                (0.25, "#001a66"),  # dark blue
+                (0.55, "#0066ff"),  # blue
                 (0.85, "#66ffff"),  # cyan
-                (1.00, "#ffffff"),  # white
+                (1.00, "#76ff7d"),  # green
             ]
-        )        
+        )  
+        
+        cosmo_cmap.set_bad("magenta")
+        cosmo_cmap.set_over("red")
+        cosmo_cmap.set_under("yellow")      
         
         if three_D:
             fig = plt.figure(figsize=(9,9)) 
@@ -526,7 +530,10 @@ class Universe:
             
             vmin = np.percentile(heatmap[heatmap > 0], 5)
             vmax = np.percentile(heatmap, 99.5)
-
+            
+            heatmap = np.maximum(heatmap, vmin) ## Deals with 0 values
+            heatmap = np.minimum(heatmap, vmax)
+            
             plt.figure(figsize=(8,8))
             plt.imshow(
                 heatmap.T,
