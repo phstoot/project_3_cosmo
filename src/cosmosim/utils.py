@@ -27,6 +27,20 @@ import numba as nb
 from numba import njit, prange
 from scipy.differentiate import derivative
 
+def section(title: str):
+    """print to console in nice format"""
+    width = 60
+    print("\n" + "=" * width)
+    print(f"{title.upper():^{width}}")
+    print("=" * width + "\n")
+
+
+def spacer(n: int = 2):
+    """print to console in nice format"""
+    print("\n" * n, end="")
+
+
+
 @njit(parallel = True)
 def potential_to_acceleration_numba(phi, acc, n_cells):
     """Numba go fast!"""

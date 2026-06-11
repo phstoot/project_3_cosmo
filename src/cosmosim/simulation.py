@@ -902,12 +902,12 @@ class Universe:
                 density[:, :, self.z_center-self.thickness:self.z_center+self.thickness+1],
                 axis=2)
             
-            print("Density stats for frame {}: min = {:.5f}, max = {:.5f}, sum = {:.5f}".format(
-                frame,
-                np.min(heatmap),
-                np.max(heatmap),
-                np.sum(heatmap)
-            ))
+            # print("Density stats for frame {}: min = {:.5f}, max = {:.5f}, sum = {:.5f}".format(
+            #     frame,
+            #     np.min(heatmap),
+            #     np.max(heatmap),
+            #     np.sum(heatmap)
+            # )) # As diagnostic
 
             heatmap = np.maximum(heatmap, self.all_min)
             heatmap = np.minimum(heatmap, self.all_max)
@@ -1047,11 +1047,6 @@ class Universe:
         
         
         else: 
-            
-            #### Fix
-            print(self.indices[:20])
-            print(len(self.indices))
-            
             fig, self.ax = plt.subplots()
             
             self.z_center = int(self.n_cells / 2)
