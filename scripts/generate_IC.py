@@ -140,11 +140,30 @@ test = Universe(
 test.positions = positions
 test.momenta = momenta
 # test.plot()
-test.run(steps=950, numba=True, store=False)
+test.run(steps=900, numba=True, store=False)
 test.plot()
 test.plot_colour(thickness=1)
+Power_Spectrum, k_bins = test._calculate_power_spectrum()
 
+plt.scatter(k_bins, Power_Spectrum)
+plt.xscale('log')
+plt.yscale('log')
+plt.xlabel('k')
+plt.ylabel('P(k)')
+plt.title('Power Spectrum')
+plt.grid()
+plt.show()
 
+Power_Spectrum2, k_bins2 = test._calculate_power_spectrum(cic_correction=False)
+
+plt.scatter(k_bins2, Power_Spectrum2)
+plt.xscale('log')
+plt.yscale('log')
+plt.xlabel('k')
+plt.ylabel('P(k)')
+plt.title('Power Spectrum')
+plt.grid()
+plt.show()
 
 
 # A_test = amplitude_physical(
