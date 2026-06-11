@@ -133,16 +133,109 @@ def interpolate_acceleration_cic_numba(positions, acceleration_particles, accele
             acceleration_grid[ip, jp, kp, :] * dx * dy * dz 
         )
 
+def hubble_param(a, H0, omega_0m, omega_0k, omega_0lamb):
+    """Compute Hubble parameter based on z = 0 parameters, as a function of a. Radiation is ignored
+
+    Parameters
+    ----------
+    a : arraylike
+        scale_factor
+    H0 : float
+        Hubble constant (Hubble paramater today)
+    omega_0m : float
+        matter fraction
+    omega_0k : float
+        curvature
+    omega_0lamb : float
+        dark energy
+
+    Returns
+    -------
+    arraylike
+        Hubble parameter as a function of a
+    """
+    return H0 * np.sqrt(omega_0m/a**3 + omega_0k/a**2 + omega_0lamb)
+
+def omega_fractions(a, omega_0m, omega_0k, omega_0lamb):
+    """Track cosmological density parameters over time, radiation ignored.
+
+    Parameters
+    ----------
+    a : arraylike
+        scale_factor
+    omega_0m : float
+        matter fraction
+    omega_0k : float
+        curvature
+    omega_0lamb : float
+        dark energy
+
+    Returns
+    -------
+    omega_m, omega_lamb, omega_k 
+        the three fractions as a function of a
+    """
+    E2 = omega_0m/a**3 + omega_0k/a**2 + omega_0lamb
+    omega_m = (omega_0m / a**3) / E2
+    omega_lamb = omega_0lamb / E2
+    omega_k = (omega_0k / a**2) / E2 
+    return omega_m, omega_lamb, omega_k
+
+def growth_factor(a, omega_0m, omega_0k, omega_0lamb):
+    """Compute growth factor D+(a) 
+
+    Parameters
+    ----------
+    a : arraylike
+        scale_factor
+    omega_0m : float
+        matter fraction
+    omega_0k : float
+        curvature
+    omega_0lamb : float
+        dark energy
+
+    Returns
+    -------
+    D
+        The growth factor as a function of a
+    """
+    omega_m, omega_lamb, omega_k = omega_fractions(a, omega_0m, omega_0k, omega_0lamb)
+    D = (5/2) * omega_m / (omega_m**(4/7) - omega_lamb + (1 + 0.5 * omega_m) * (1 + omega_lamb/70)) * a
+    return D
+
+def growth_factor_deriv(a, omega_0m, omega_0k, omega_0lamb):
+    """Compute the derivative of the growth factor D+(a).
+    Wrapper function for scipy.differentiate.derivative()
+
+    Parameters
+    ----------
+    a : arraylike
+        scale factor
+    omega_0m : float
+        total matter fraction at a=1, z=0
+    omega_0k : float
+        curvature
+    omega_0lamb : float
+        total dark energy density fraction at a=1, z=0
+
+    Returns
+    -------
+    arraylike
+        d(D+(a))/da
+    """
+    return derivative(growth_factor, a, args=[omega_0m, omega_0k, omega_0lamb]).df
+
 def eh97_power_spectrum(
         k_hMpc,
-        h,
-        omega_m,
-        omega_b,
-        omega_nu,
-        n,
-        A,
-        N_nu,
-        T_cmb
+        h=0.67,
+        omega_m=0.31,
+        omega_b=0.05,
+        omega_nu=0.0,
+        n=1.0,
+        A=1.0,
+        N_nu=1,
+        T_cmb=2.7255
 ):
     """Computes the Eisenstein & Hu (1997) master transfer function and linear power spectrum
     running smoothly through baryon suppression and neutrino free-streaming.
@@ -236,95 +329,23 @@ def eh97_power_spectrum(
 
     return Pk
 
-def hubble_param(a, H0, omega_0m, omega_0k, omega_0lamb):
-    """Compute Hubble parameter based on z = 0 parameters, as a function of a. Radiation is ignored
 
-    Parameters
-    ----------
-    a : arraylike
-        scale_factor
-    H0 : float
-        Hubble constant (Hubble paramater today)
-    omega_0m : float
-        matter fraction
-    omega_0k : float
-        curvature
-    omega_0lamb : float
-        dark energy
-
-    Returns
-    -------
-    arraylike
-        Hubble parameter as a function of a
-    """
-    return H0 * np.sqrt(omega_0m/a**3 + omega_0k/a**2 + omega_0lamb)
-
-def omega_fractions(a, omega_0m, omega_0k, omega_0lamb):
-    """Track cosmological density parameters over time, radiation ignored.
-
-    Parameters
-    ----------
-    a : arraylike
-        scale_factor
-    omega_0m : float
-        matter fraction
-    omega_0k : float
-        curvature
-    omega_0lamb : float
-        dark energy
-
-    Returns
-    -------
-    omega_m, omega_lamb, omega_k 
-        the three fractions as a function of a
-    """
-    E2 = omega_0m/a**3 + omega_0k/a**2 + omega_0lamb
-    omega_m = (omega_0m / a**3) / E2
-    omega_lamb = omega_0lamb / E2
-    omega_k = (omega_0k / a**2) / E2 
-    return omega_m, omega_lamb, omega_k
-
-def growth_factor(a, omega_0m, omega_0k, omega_0lamb):
-    """Compute growth factor D+(a) 
-
-    Parameters
-    ----------
-    a : arraylike
-        scale_factor
-    omega_0m : float
-        matter fraction
-    omega_0k : float
-        curvature
-    omega_0lamb : float
-        dark energy
-
-    Returns
-    -------
-    D
-        The growth factor as a function of a
-    """
-    omega_m, omega_lamb, omega_k = omega_fractions(a, omega_0m, omega_0k, omega_0lamb)
-    D = (5/2) * omega_m / (omega_m**(4/7) - omega_lamb + (1 + 0.5 * omega_m) * (1 + omega_lamb/70)) * a
-    return D
-
-def growth_factor_deriv(a, omega_0m, omega_0k, omega_0lamb):
-    """Wrapper function for computing the derivative of the growth factor D+(a).
-    Uses scipy.differentiate.derivative()
-
-    Parameters
-    ----------
-    a : arraylike
-        scale factor
-    omega_0m : float
-        total matter fraction at a=1, z=0
-    omega_0k : float
-        curvature
-    omega_0lamb : float
-        total dark energy density fraction at a=1, z=0
-
-    Returns
-    -------
-    arraylike
-        d(D+(a))/da
-    """
-    return derivative(growth_factor, a, args=[omega_0m, omega_0k, omega_0lamb]).df
+def amplitude_physical(
+        a, 
+        h,
+        As, 
+        omega_0m, 
+        omega_0k, 
+        omega_0lamb, 
+        ns, 
+        k_pivot_Mpc=0.05
+    ):
+    c_over_H0 = 2998.0                    # Mpc/h — exact, independent of h, because H0 = 100h
+    k_pivot_hMpc = k_pivot_Mpc / h        # 0.05 Mpc^{-1} → h/Mpc
+    D_norm = (growth_factor(a, omega_0m, omega_0k, omega_0lamb) /
+              growth_factor(1.0, omega_0m, omega_0k, omega_0lamb))
+    A = ((8*np.pi**2 / 25) * As *
+         k_pivot_hMpc**(1 - ns) *
+         c_over_H0**4 / omega_0m**2 *
+         D_norm**2)
+    return A
