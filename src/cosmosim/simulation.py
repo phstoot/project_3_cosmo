@@ -34,6 +34,108 @@ from matplotlib.animation import FuncAnimation
 import cProfile
 
 class Universe:
+    """
+    Cosmological particle-mesh (PM) N-body simulation in comoving coordinates.
+
+    Evolves a self-gravitating dark matter particle distribution from an initial
+    scale factor to a target epoch using leapfrog integration in scale factor a.
+    Initial conditions are generated via the Zeldovich approximation, seeded
+    either from the Eisenstein & Hu (1997) transfer function with σ₈ or Aₛ
+    normalisation, or from simple Gaussian random perturbations.
+
+    Algorithm per step
+    ------------------
+    1. Density assignment    : NGP or CIC mass deposition onto n_cells³ mesh.
+    2. Poisson solver        : FFT-based solution of ∇²φ = (3/2)(Ω_m/a)δ,
+                               using a discrete Green function.
+    3. Force computation     : negative central finite-difference gradient of φ.
+    4. Force interpolation   : same scheme as density assignment (NGP or CIC).
+    5. Leapfrog kick         : p_{n+1/2} = p_{n-1/2} + f(aₙ) g_n Δa.
+    6. Leapfrog drift        : x_{n+1}   = x_n + f(a_{n+1/2}) p_{n+1/2} / a²_{n+1/2} Δa.
+
+    Positions are in comoving cell units [0, n_cells). The canonical momentum p
+    is defined such that dx/da = f(a) p / a², where
+    f(a) = [a / (Ω_m + Ω_k a + Ω_Λ a³)]^{1/2} (H₀ = 1 convention).
+
+    Parameters
+    ----------
+    n_particles : int
+        Number of particles per side; total particle count is n_particles³.
+    n_cells : int
+        Number of mesh cells per side; total grid size is n_cells³.
+    boxlength : float
+        Comoving side length of the simulation box in Mpc/h.
+    scale_factor : float
+        Initial scale factor a₀ (default 0.1, i.e. z = 9).
+    delta_a : float
+        Scale factor step size Δa per leapfrog step.
+    interpolate_method : {'ngp', 'cic'}
+        Mass/force interpolation scheme. CIC is recommended; it must be the
+        same for both density assignment and force interpolation to avoid
+        self-forces.
+    h : float
+        Dimensionless Hubble parameter (H₀ = 100h km s⁻¹ Mpc⁻¹).
+    omega_0m : float
+        Total matter density parameter Ω_{m,0} = Ω_c + Ω_b.
+    omega_0b : float
+        Baryon density parameter Ω_{b,0}.
+    omega_0k : float
+        Curvature density parameter Ω_{k,0}.
+    omega_0lamb : float
+        Cosmological constant density parameter Ω_{Λ,0}.
+    As : float
+        Primordial scalar amplitude at pivot scale k_p = 0.05 Mpc⁻¹
+        (Planck convention). Used when amplitude='physical' in generate_ics().
+    ns : float
+        Primordial spectral index nₛ.
+    sigma8 : float
+        Target RMS matter fluctuation amplitude in spheres of radius 8 h⁻¹ Mpc
+        at z = 0. Used when amplitude='normalized' in generate_ics().
+    T_cmb : float
+        CMB temperature today in Kelvin (Fixsen 2009: 2.7255 K).
+
+    Key methods
+    -----------
+    generate_ics(amplitude)
+        Compute Zeldovich-approximation initial conditions from the EH97 power
+        spectrum. Call before run(). Supports 'physical' (Aₛ-based),
+        'normalized' (σ₈-based), and 'custom' amplitude modes.
+    run(steps, store, interval)
+        Advance the simulation for a given number of steps. Optionally store
+        snapshots of positions and density for later animation or analysis.
+    plane_wave_1D_test(a_ini, a_cross)
+        Validate the PM solver against the analytic 1D plane-wave collapse
+        solution (Zeldovich 1970); plots the phase diagram at initial and
+        crossing epochs.
+    plot_colour(three_D, thickness)
+        Visualise the particle distribution as a projected density heatmap
+        or 3D colour scatter plot.
+    plot_animation(three_D, fps, name)
+        Render a GIF animation of the stored snapshots.
+
+    Notes
+    -----
+    - The Green function denominator is precomputed in __init__ and cached as
+      _G_denom since the sin² terms are time-independent.
+    - Numba JIT compilation is triggered on the first run() call and amortised
+      over all subsequent steps.
+    - Radiation (Ω_r) is neglected throughout.
+
+    Examples
+    --------
+    EdS matter-only run from z = 9:
+
+    >>> sim = Universe(n_particles=32, n_cells=64, omega_0m=1, omega_0lamb=0)
+    >>> sim.generate_ics(amplitude='normalized')
+    >>> sim.run(steps=900, store=True, interval=10)
+    >>> sim.plot_colour()
+
+    Plane-wave validation test:
+
+    >>> sim = Universe(n_particles=32, n_cells=64, omega_0m=1)
+    >>> sim.plane_wave_1D_test(a_ini=0.1, a_cross=1.0)
+    """
+    
     def __init__(
             self,
             n_particles: int        = 32,
@@ -1024,8 +1126,3 @@ class Universe:
         )
         return corrected_power_spectrum, k_centres
     
-    def save_checkpoint(self):
-        pass
-
-    def save_finalstate(self):
-        pass
