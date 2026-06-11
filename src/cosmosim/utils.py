@@ -25,6 +25,7 @@ import pandas as pd
 from scipy import fft
 import numba as nb
 from numba import njit, prange
+from scipy.differentiate import derivative
 
 @njit(parallel = True)
 def potential_to_acceleration_numba(phi, acc, n_cells):
@@ -306,31 +307,24 @@ def growth_factor(a, omega_0m, omega_0k, omega_0lamb):
     D = (5/2) * omega_m / (omega_m**(4/7) - omega_lamb + (1 + 0.5 * omega_m) * (1 + omega_lamb/70)) * a
     return D
 
-def growth_factor_deriv(a, H0, omega_0m, omega_0k, omega_0lamb):
-    """Compute the time derivative of the growth factor, used in ZA momenta perturbations
+def growth_factor_deriv(a, omega_0m, omega_0k, omega_0lamb):
+    """Wrapper function for computing the derivative of the growth factor D+(a).
+    Uses scipy.differentiate.derivative()
 
     Parameters
     ----------
     a : arraylike
-        scale_factor
-    H0 : float
-        Hubble constant (Hubble paramater today)
+        scale factor
     omega_0m : float
-        matter fraction
+        total matter fraction at a=1, z=0
     omega_0k : float
         curvature
     omega_0lamb : float
-        dark energy
+        total dark energy density fraction at a=1, z=0
 
     Returns
     -------
-    D_deriv_t
-        time derivative of growth factor as a function of a
+    arraylike
+        d(D+(a))/da
     """
-    Da = growth_factor(a, omega_0m, omega_0k, omega_0lamb)
-    E2 = omega_0m/a**3 + omega_0k/a**2 + omega_0lamb
-    omega_m = (omega_0m / a**3) / E2
-    D_deriv_a = omega_m / (2 * a**4 * E2) * (5*a - 3*Da)
-    a_deriv_t = a * hubble_param(a, H0, omega_0m, omega_0k, omega_0lamb)
-    D_deriv_t = D_deriv_a * a_deriv_t
-    return D_deriv_t
+    return derivative(growth_factor, a, args=[omega_0m, omega_0k, omega_0lamb]).df
