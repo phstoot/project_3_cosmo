@@ -132,6 +132,15 @@ def interpolate_acceleration_cic_numba(positions, acceleration_particles, accele
             acceleration_grid[ip, jp, kp, :] * dx * dy * dz 
         )
 
+def sinc(x):
+        out = np.ones_like(x)
+
+        mask = (x != 0)
+
+        out[mask] = np.sin(x[mask]) / x[mask]
+
+        return out
+
 def eh97_power_spectrum(
         k_hMpc,
         h,

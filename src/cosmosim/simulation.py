@@ -26,7 +26,7 @@ from tqdm import tqdm
 from PIL import Image
 import pandas as pd
 from scipy import fft
-from cosmosim.utils import potential_to_acceleration_numba, interpolate_density_cic_numba, interpolate_acceleration_cic_numba
+from cosmosim.utils import potential_to_acceleration_numba, interpolate_density_cic_numba, interpolate_acceleration_cic_numba, sinc
 from scipy.spatial import cKDTree # type: ignore
 from matplotlib.colors import LogNorm
 from matplotlib.colors import LinearSegmentedColormap
@@ -819,22 +819,34 @@ class Universe:
         
         plt.close('all')
 
-    def _calculate_power_spectrum(self):
+    def _calculate_power_spectrum(self, cic_correction: bool = True):
         """Calculate the power spectrum of the density field. 
         One can compare this to theoretical predictions or other simulations for validation.
         The basic idea is to calculate the density field in real space, transform to Fourier space and average the squared amplitudes of the Fourier modes in spherical shells.
-        It is assumed that the power spectrum is isotropic.
+        It is assumed that the power spectrum is isotropic. 
+        Since the Cloud-In-Cell method affects the Fourier modes, one can optionally apply a correction factor to the power spectrum to account for this. 
+        
+        Parameters
+        ----------
+        cic_correction : bool, optional
+            If True, apply a correction factor to the power spectrum to account for the effects of the Cloud-In-Cell interpolation method. Default is True.
+        
+        Returns
+        -------
+        power_spec_k : np.ndarray
+            The estimated power spectrum values for each k-bin.
+        k_centres : np.ndarray
+            The central k values for each bin, corresponding to the power spectrum values.
         """
         delta_real = self.density / np.mean(self.density) - 1.0
         delta_k = np.fft.fftn(delta_real)
         
         N = self.density.shape[0]
+        dx = self.n_cells / N
         
-        PowerSpectrum_k_grid = np.abs(delta_k)**2
-        
-        kx = 2*np.pi*np.fft.fftfreq(N, d=self.n_cells/N) # This spacing correct?
-        ky = 2*np.pi*np.fft.fftfreq(N, d=self.n_cells/N)
-        kz = 2*np.pi*np.fft.fftfreq(N, d=self.n_cells/N)
+        kx = 2*np.pi*np.fft.fftfreq(N, d=dx) # This spacing correct?
+        ky = 2*np.pi*np.fft.fftfreq(N, d=dx)
+        kz = 2*np.pi*np.fft.fftfreq(N, d=dx)
 
         KX, KY, KZ = np.meshgrid(
             kx, ky, kz,
@@ -850,8 +862,19 @@ class Universe:
             np.log10(np.max(kmag)),
             50
         )
-    
-        PowerSpectrum_k = np.zeros(len(k_bins)-1)
+
+        if cic_correction:
+            Wx = sinc(KX * dx / 2)**2
+            Wy = sinc(KY * dx / 2)**2
+            Wz = sinc(KZ * dx / 2)**2
+
+            Wcic = Wx * Wy * Wz
+            
+            delta_k /= Wcic
+        
+        power_spec_k_grid = np.abs(delta_k)**2
+        
+        power_spec_k = np.zeros(len(k_bins)-1)
         k_centres = np.zeros(len(k_bins)-1)
         
         for i in range(len(k_bins)-1):
@@ -863,18 +886,21 @@ class Universe:
                 (kmag < k_high)
             )
 
-            PowerSpectrum_k[i] = np.mean(
-                PowerSpectrum_k_grid[mask]
-            )
+            if len(power_spec_k_grid[mask]) == 0:
+                power_spec_k[i] = 0
+            
+            else:
+                power_spec_k[i] = np.mean(
+                    power_spec_k_grid[mask]
+                )
 
             k_centres[i] = np.sqrt(
                 k_low * k_high
             )
         
-        ## Add sth to remove the CIC distortion
+          
         
-        
-        return PowerSpectrum_k, k_centres
+        return power_spec_k, k_centres
     
     def save_checkpoint(self):
         pass
