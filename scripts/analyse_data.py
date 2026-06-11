@@ -5,6 +5,10 @@ from cosmosim.simulation import Universe
 from cosmosim.utils import *
 from astropy import units as u
 
+
+# This is an example script on how to load in data from a large simulation
+
+
 positions = np.load('data/finalpositions_1Gpc.npy')
 density = np.load('data/finaldensity_1Gpc.npy')
 emptysim = Universe()
