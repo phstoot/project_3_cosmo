@@ -338,6 +338,40 @@ def eh97_power_spectrum(
 
     return Pk
 
+def tophat_window(k, R=8.0):
+    """The tophat function used for integrating to find sigma8 normalization factor
+    """
+    x = k * R
+    return np.where(x < 1e-3, 1.0, 3.0 * (np.sin(x) - x * np.cos(x)) / (x**3))
+
+def amplitude_normalized(        
+        a, 
+        h,
+        sigma8_target, 
+        omega_0m, 
+        omega_0k, 
+        omega_0lamb, 
+        ns, 
+        T_cmb=2.7255):
+
+    # 1. Create a fine 1D array of physical k values for integration
+    k_integration = np.logspace(-4, 2, 2000) # h/Mpc
+
+    # 2. Evaluate your unnormalized spectrum (A=1) along this 1D array
+    pk_unnorm = eh97_power_spectrum(k_integration, omega_m=omega_0m, omega_b=0.045, h=h, A=1.0, omega_nu=0, n=ns, N_nu=1, T_cmb = T_cmb)
+
+    # 3. Integrate to find the unnormalized sigma_8
+    window = tophat_window(k_integration, R=8.0)
+    integrand = (k_integration**2) * pk_unnorm * (window**2) / (2.0 * np.pi**2)
+    sigma8_unnorm_sq = np.trapezoid(integrand, k_integration) #type: ignore
+
+    # 4. Compute the true physical normalization constant A !!!!-> For z=0! 
+    A_true_now = (sigma8_target**2) / sigma8_unnorm_sq
+
+    # 5. Divide with growth factor scaling to get amplitude for a <1 !!!
+    D2 = (growth_factor(a, omega_0m, omega_0k, omega_0lamb) / growth_factor(1, omega_0m, omega_0k, omega_0lamb))**2
+    A_true_then = A_true_now / D2
+    return A_true_then
 
 def amplitude_physical(
         a, 
@@ -349,7 +383,9 @@ def amplitude_physical(
         ns, 
         k_pivot_Mpc=0.05
     ):
-    c_over_H0 = 2998.0                    # Mpc/h — exact, independent of h, because H0 = 100h
+    c = 2.998e5                  # we need physical units here
+    H0 = 100*h
+    c_over_H0 = c / H0
     k_pivot_hMpc = k_pivot_Mpc / h        # 0.05 Mpc^{-1} → h/Mpc
     D_norm = (growth_factor(a, omega_0m, omega_0k, omega_0lamb) /
               growth_factor(1.0, omega_0m, omega_0k, omega_0lamb))
