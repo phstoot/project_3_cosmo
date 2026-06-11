@@ -26,7 +26,7 @@ from tqdm import tqdm
 from PIL import Image
 import pandas as pd
 from scipy import fft
-from cosmosim.utils import potential_to_acceleration_numba, interpolate_density_cic_numba, interpolate_acceleration_cic_numba, sinc
+from cosmosim.utils import *
 from scipy.spatial import cKDTree # type: ignore
 from matplotlib.colors import LogNorm
 from matplotlib.colors import LinearSegmentedColormap
@@ -42,7 +42,12 @@ class Universe:
             scale_factor: float     = 0.1,
             delta_a: float          = 0.001, # decide later, we also need to change to use scale factor as timestep
             time_period: tuple      = (0, 10),
-            interpolate_method: str = 'cic'
+            interpolate_method: str = 'cic',
+            h: float                = 1,
+            omega_0m: float         = 1,
+            omega_0b: float         = 0.045,
+            omega_0k: float         = 0,
+            omega_0lamb: float      = 0
     ):
         
         # assign attributes
@@ -57,13 +62,13 @@ class Universe:
         self.interpolate_method     = interpolate_method
 
         # cosmo model
-        self.omega_m                = 1 # all matter 
-        self.omega_c                = 0.95 # cdm fraction
-        self.omega_b                = 0.05 # baryon fraction of total matter
-        self.omega_k                = 0 # curvature
-        self.omega_lambda           = 0 # dark energy
-        self.omega_r                = 0
-        self.H_0                    = 1
+        self.omega_0m                = omega_0m # all matter 
+        self.omega_0b                = omega_0b # baryon fraction of total matter
+        self.omega_0c                = self.omega_0m - self.omega_0b
+        self.omega_0k                = omega_0k # curvature
+        self.omega_0lamb             = omega_0lamb # dark energy
+        self.omega_0r                = 0
+        self.h                       = h
 
         # initialize
         self._G_denom               = self._greenfunc_denom() # cache for speedup, stays the same for all simulation
@@ -186,7 +191,7 @@ class Universe:
         """
         del_r = self.density - 1
         del_k = fft.fftn(del_r)
-        G_k = -(3/8) * (self.omega_m / self.scale_factor) * self._G_denom**-1
+        G_k = -(3/8) * (self.omega_0m / self.scale_factor) * self._G_denom**-1
         G_k[0, 0, 0] = 0 # handle singularity
         phi_k = G_k * del_k #type: ignore
         phi_r = fft.ifftn(phi_k).real #type: ignore
@@ -321,7 +326,7 @@ class Universe:
             Conversion factor
         """
         f = (
-            (self.omega_m + self.omega_k * scale_factor + self.omega_lambda * scale_factor**3) / scale_factor
+            (self.omega_0m + self.omega_0k * scale_factor + self.omega_0lamb * scale_factor**3) / scale_factor
         ) ** -0.5
         return f
     
