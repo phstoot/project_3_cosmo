@@ -154,7 +154,7 @@ def eh97_power_spectrum(
       omega_nu : float, massive neutrino density parameter
       h        : float, Hubble parameter (H0 / 100)
       n        : float, primordial spectral index (typically 1.0)
-      A        : float, overall scale-independent normalization factor
+      A        : float, overall normalization factor
       N_nu     : int, number of degenerate massive neutrino species
       T_cmb    : float, CMB temperature today in Kelvin (default 2.728K)
     
@@ -193,7 +193,7 @@ def eh97_power_spectrum(
     s = 44.5 * np.log(9.83 / omhh) / np.sqrt(1 + 10 * obhh**0.75)
 
     # Eq 5: dimensionless scale normalized by equality horizon
-    q = k * theta27**2 / omhh # Mpc^-1?
+    q = k * theta27**2 / omhh 
 
     # Eq 11: growth suppression indices
     p_c = 0.25 * (5 - np.sqrt(1 + 24* f_c))
@@ -209,7 +209,7 @@ def eh97_power_spectrum(
     gamma_eff = omhh * (
         np.sqrt(alpha_nu) + (1 - np.sqrt(alpha_nu)) / (1 + (0.43 * k * s)**4)
         )
-    q_eff = (k * theta27**2) / gamma_eff # Mpc^-1?
+    q_eff = (k * theta27**2) / gamma_eff 
 
     # Eq 18-21: suppression Transfer function
     beta_c = (1 - 0.949 * f_nub)**-1
@@ -235,6 +235,102 @@ def eh97_power_spectrum(
 
     return Pk
 
-def analytic_zeldovich(q, k_wave, a):
+def hubble_param(a, H0, omega_0m, omega_0k, omega_0lamb):
+    """Compute Hubble parameter based on z = 0 parameters, as a function of a. Radiation is ignored
 
-    return x, p
+    Parameters
+    ----------
+    a : arraylike
+        scale_factor
+    H0 : float
+        Hubble constant (Hubble paramater today)
+    omega_0m : float
+        matter fraction
+    omega_0k : float
+        curvature
+    omega_0lamb : float
+        dark energy
+
+    Returns
+    -------
+    arraylike
+        Hubble parameter as a function of a
+    """
+    return H0 * np.sqrt(omega_0m/a**3 + omega_0k/a**2 + omega_0lamb)
+
+def omega_fractions(a, omega_0m, omega_0k, omega_0lamb):
+    """Track cosmological density parameters over time, radiation ignored.
+
+    Parameters
+    ----------
+    a : arraylike
+        scale_factor
+    omega_0m : float
+        matter fraction
+    omega_0k : float
+        curvature
+    omega_0lamb : float
+        dark energy
+
+    Returns
+    -------
+    omega_m, omega_lamb, omega_k 
+        the three fractions as a function of a
+    """
+    E2 = omega_0m/a**3 + omega_0k/a**2 + omega_0lamb
+    omega_m = (omega_0m / a**3) / E2
+    omega_lamb = omega_0lamb / E2
+    omega_k = (omega_0k / a**2) / E2 
+    return omega_m, omega_lamb, omega_k
+
+def growth_factor(a, omega_0m, omega_0k, omega_0lamb):
+    """Compute growth factor D+(a) 
+
+    Parameters
+    ----------
+    a : arraylike
+        scale_factor
+    omega_0m : float
+        matter fraction
+    omega_0k : float
+        curvature
+    omega_0lamb : float
+        dark energy
+
+    Returns
+    -------
+    D
+        The growth factor as a function of a
+    """
+    omega_m, omega_lamb, omega_k = omega_fractions(a, omega_0m, omega_0k, omega_0lamb)
+    D = (5/2) * omega_m / (omega_m**(4/7) - omega_lamb + (1 + 0.5 * omega_m) * (1 + omega_lamb/70)) * a
+    return D
+
+def growth_factor_deriv(a, H0, omega_0m, omega_0k, omega_0lamb):
+    """Compute the time derivative of the growth factor, used in ZA momenta perturbations
+
+    Parameters
+    ----------
+    a : arraylike
+        scale_factor
+    H0 : float
+        Hubble constant (Hubble paramater today)
+    omega_0m : float
+        matter fraction
+    omega_0k : float
+        curvature
+    omega_0lamb : float
+        dark energy
+
+    Returns
+    -------
+    D_deriv_t
+        time derivative of growth factor as a function of a
+    """
+    Da = growth_factor(a, omega_0m, omega_0k, omega_0lamb)
+    E2 = omega_0m/a**3 + omega_0k/a**2 + omega_0lamb
+    omega_m = (omega_0m / a**3) / E2
+    D_deriv_a = omega_m / (2 * a**4 * E2) * (5*a - 3*Da)
+    a_deriv_t = a * hubble_param(a, H0, omega_0m, omega_0k, omega_0lamb)
+    D_deriv_t = D_deriv_a * a_deriv_t
+    return D_deriv_t
