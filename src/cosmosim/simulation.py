@@ -26,7 +26,7 @@ from tqdm import tqdm
 import pandas as pd
 from scipy import fft
 from cosmosim.utils import potential_to_acceleration_numba, interpolate_density_cic_numba, interpolate_acceleration_cic_numba
-from scipy.spatial import cKDTree
+from scipy.spatial import cKDTree # type: ignore
 from matplotlib.colors import LogNorm
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.animation import FuncAnimation
@@ -157,16 +157,6 @@ class Universe:
         momenta = self.displacement * self.scale_factor**1.5
         return momenta
     
-    def init_zeldovich(self): #TODO not finished
-        """Set up a 1D sine wave in x, to test the simulation against the known analytic solution"""
-        # 1) compute wave parameters
-        a_cross = 10 * self.scale_factor
-        k = 2 * np.pi / self.n_cells
-        A = -1.0 / (a_cross * k)   # D+(a) = a for EdS (see paper for formula)
-
-        # 2) set positions
-        q = np.linspace(0, self.n_cells, self.n_particles, endpoint=False)
-        x_displaced = q + self.scale_factor * A * np.sin(k * q)  # D+(a_ini) = a_ini
 
     def interpolate_density(self) -> None:
         """Interpolate the mesh density field from the current particle positions, using the Nearest Grid Point (NPG) method.
