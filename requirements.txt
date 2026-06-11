@@ -4,3 +4,4 @@ matplotlib
 numba
 tdqm
 scipy
+astropy
