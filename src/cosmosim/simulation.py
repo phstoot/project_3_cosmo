@@ -448,7 +448,7 @@ class Universe:
         plt.show()
         plt.close('all')
         
-    def plot_colour(self, three_D = False, gridoff = False, thickness = 3, time_interval = 5):
+    def plot_colour(self, three_D: bool = False, gridoff: bool = False, thickness: int = 3, time_interval: int = 5):
         """Plotting method to visualize the particle distribution. 
         Two different plotting versions, one 3D scatter with density-based colouring and one 2D heatmap of the projected density. 
         
@@ -548,144 +548,343 @@ class Universe:
         
         plt.close('all')
         
+    def _update_animation(self,frame: int):
+        """Update function for animation, called either by FuncAnimation in the 2D plot or manually in the 3D plot.
+        The artists are updated in-place of the whole plot.
         
-    # def _update_animation(self,frame: int):
-    #     density = self.density_hist[self.indices[frame]]
-
-    #     heatmap = np.sum(
-    #         density[:, :, self.z_center-self.thickness:self.z_center+self.thickness+1],
-    #         axis=2)
+        Parameters        
+        ----------
+        frame : int
+            The index of the frame to update to, corresponding to the indices of the stored position and density arrays.
         
-    #     #density.sum(axis=2)
-
+        Returns
+        -------
+        artists : tuple
+            The artists that were updated, to be redrawn by the animation function.
+        """
         
+        idx = self.indices[frame]
+        density = self.density_hist[idx]
         
+        # density = self.density_hist[self.indices[frame]]
 
-    #     self.im.set_data(heatmap.T)
-
-    #     return (self.im,)
-        
-        
-    # def plot_animation(self, three_D = False, gridoff = False, thickness = 3, time_interval = 5):
-    #     cosmo_cmap = LinearSegmentedColormap.from_list(
-    #         "cosmo",
-    #         [
-    #             (0.00, "#000000"),  # black
-    #             (0.15, "#001a66"),  # dark blue
-    #             (0.35, "#0066ff"),  # blue
-    #             (0.85, "#66ffff"),  # cyan
-    #             (1.00, "#ffffff"),  # white
-    #         ]
-    #     )        
-        
-    #     if three_D:
-    #         fig = plt.figure(figsize=(9,9)) 
-    #         self.ax = fig.add_subplot(projection='3d')
-    #         self.ax.set_aspect('equal')
-    #         self.ax.set_xlabel('x')
-    #         self.ax.set_ylabel('y')
-    #         self.ax.set_zlabel('z')
-        
-    #         tree = cKDTree(self.positions)
-
-
-    #         # Distance to 16th nearest neighbour
-    #         distances, _ = tree.query(self.positions, k=16)
-
-    #         r = distances[:, -1]
-
-    #         # Density estimate
-    #         density = 16 / (4/3 * np.pi * r**3)
+        if self.three_D:
+            idx = self.indices[frame]
             
-    #         vmin = np.percentile(density[density > 0], 5)
-    #         vmax = np.percentile(density, 99.5)
+            pos = self.positions_hist[idx]
+            grid = self.density_hist[idx]
+
+            ix = np.floor(pos[:,0]).astype(int) % self.n_cells
+            iy = np.floor(pos[:,1]).astype(int) % self.n_cells
+            iz = np.floor(pos[:,2]).astype(int) % self.n_cells
+
+            particle_density = grid[ix, iy, iz]
+            particle_density = np.clip(particle_density, self.all_min, self.all_max)
             
-    #         self.ax.scatter(self.positions[:,0], self.positions[:,1], self.positions[:,2], s=1, c=density, cmap = cosmo_cmap, norm = LogNorm(vmin=vmin, vmax=vmax)) # type: ignore
-    #         self.ax.set_title(f"3D particle distribution with density-based colouring, a={self.scale_factor:.3f}")
-    #         if gridoff:
-    #             self.ax.grid(False)
-    #             fig.patch.set_visible(False)
-    #             self.ax.patch.set_visible(False)
-    #             self.ax.set_axis_off()
-    #             self.ax._axis3don = False
             
-    #         else: 
-    #             fig.colorbar(mappable = self.ax.collections[0], label='Projected density')
-    #         plt.show()
+            
+            self.scatter._offsets3d = (
+                pos[:,0],
+                pos[:,1],
+                pos[:,2]
+            )
+
+            self.scatter.set_array(
+                particle_density
+            )
+
+            self.title.set_text(
+                f"3D particle distribution with density-based colouring, a = {self.scale_factor_hist[idx]:.3f}"
+            )
+
+            print(
+                f"Rendering frame "
+                f"{frame+1}/{len(self.indices)}"
+            )
+                        
+            return (self.scatter, self.title)
+            
+        else:       
+            heatmap = np.sum(
+                density[:, :, self.z_center-self.thickness:self.z_center+self.thickness+1],
+                axis=2)
+            
+            print(
+                frame,
+                np.min(heatmap),
+                np.max(heatmap),
+                np.sum(heatmap)
+            )
+
+            heatmap = np.maximum(heatmap, self.all_min)
+            heatmap = np.minimum(heatmap, self.all_max)
+            self.im.set_data(heatmap.T)
+
+            return (self.im,)     
         
-    #     fig, self.ax = plt.subplots()
+    def plot_animation(self, three_D: bool = False, gridoff: bool = False, thickness: int = 3, batch_interval: int = 5, fps: int = 20, name: str = "cosmology"):
+        """Animated version of plotting the evolution of the particle distribution. 
+        Two different plotting versions, one 3D scatter with density-based colouring and one 2D heatmap of the projected density. 
+        Requires storing of position and density arrays when using run() with store=True.
+        For the 3D version, the animation using FuncAnimation is wonky, so the generation of frames is done manually, potentially slowing down the process.
+        Saves a gif of the animation.
         
-    #     self.z_center = int(self.n_cells / 2)
-    #     self.thickness = thickness
+        Parameters
+        ----------
+        three_D : bool, optional
+            If True, plot a 3D scatter plot with density-based colouring. If False, plot a 2D heatmap of the projected density.
+        gridoff : bool, optional
+            If True, turn off the grid in the 3D plot.
+        thickness : int, optional
+            The thickness of the slice for the 2D heatmap projection.
+        batch_interval : int, optional
+            The interval between frames in the animation.
+        fps : int, optional
+            The frames per second for the animation.
+        name : str, optional
+            The name of the animation file.
+            
+        Returns
+        -------
+        None
+
+        """
         
-    #     heatmap = np.sum(
-    #         self.density[:, :, self.z_center-self.thickness:self.z_center+self.thickness+1],
-    #         axis=2
-    #     )   + 0.00001# (remove later on, already calculate self.density when initializing)
+        self.cosmo_cmap = LinearSegmentedColormap.from_list(
+            "cosmo",
+            [
+                (0.00, "#000000"),  # black
+                (0.25, "#001a66"),  # dark blue
+                (0.55, "#0066ff"),  # blue
+                (0.85, "#66ffff"),  # cyan
+                (1.00, "#76ff7d"),  # green
+            ]
+        )        
+        
+        self.cosmo_cmap.set_bad("magenta")
+        self.cosmo_cmap.set_over("red")
+        self.cosmo_cmap.set_under("yellow")
+        
+        self.indices = np.arange(
+            0,
+            len(self.density_hist),
+            batch_interval
+        )
+        
+        self.three_D = three_D
+        self.gridoff = gridoff
+        
+        if three_D:    
+            dens = np.asarray(self.density_hist)
+            
+            self.all_min = np.percentile(
+                dens[dens > 0],
+                5
+            )
+
+            self.all_max = np.percentile(
+                dens,
+                99.9
+            )     
+            
+            self.norm = LogNorm(vmin=self.all_min, vmax=self.all_max)
+            
+            ## First frame
+            idx0 = self.indices[0]
+
+            pos0 = self.positions_hist[idx0]
+            grid0 = self.density_hist[idx0]
+
+            ix = np.floor(pos0[:,0]).astype(int) % self.n_cells
+            iy = np.floor(pos0[:,1]).astype(int) % self.n_cells
+            iz = np.floor(pos0[:,2]).astype(int) % self.n_cells
+
+            density0 = grid0[ix, iy, iz]
+
+            self.fig = plt.figure(figsize=(9, 9))
+            self.ax = self.fig.add_subplot(projection="3d")
+
+            self.scatter = self.ax.scatter(
+                pos0[:,0],
+                pos0[:,1],
+                pos0[:,2],
+                c=density0,
+                s=1,
+                cmap=self.cosmo_cmap,
+                norm=self.norm
+            )
+
+            self.ax.set_xlabel("x")
+            self.ax.set_ylabel("y")
+            self.ax.set_zlabel("z")
+
+            self.ax.set_xlim(0,self.n_cells)
+            self.ax.set_ylim(0, self.n_cells)
+            self.ax.set_zlim(0, self.n_cells)
+            
+            self.title = self.ax.set_title(
+                f"3D particle distribution with density-based colouring, a = {self.scale_factor_hist[idx0]:.3f}"
+            )
+            
+            if self.gridoff:
+                self.ax.grid(False)
+                self.fig.patch.set_visible(False)
+                self.ax.patch.set_visible(False)
+                self.ax.set_axis_off()
+                self.ax._axis3don = False
+            
+            else: 
+                self.fig.colorbar(mappable = self.ax.collections[0], label='Projected density')
+            
+            ## Actual animation update
+            frames = []
+
+            for i, idx in enumerate(self.indices):
+                self._update_animation(i)
+                self.ax.figure.canvas.draw()
                 
-                
-    #     all_maps = np.array([
-    #         d[:, :, self.z_center-self.thickness:self.z_center+self.thickness+1].sum(axis=2)
-    #         for d in self.density_hist
-    #     ])
+                buf = self.ax.figure.canvas.buffer_rgba()
+                image = Image.frombytes("RGBA", self.ax.figure.canvas.get_width_height(), buf)
+                frames.append(image.convert("RGB"))
+            
+            frames[0].save(
+                f"animations/3d/{name}.gif",
+                save_all=True,
+                append_images=frames[1:],
+                loop=0,
+                duration=int(1000 / fps)
+            )
 
-    #     all_min = np.percentile(
-    #         all_maps[all_maps > 0],
-    #         5
-    #     )
+            print(f"Saved {name}.gif")
+        
+        
+        else: 
+            
+            #### Fix
+            print(self.indices[:20])
+            print(len(self.indices))
+            
+            fig, self.ax = plt.subplots()
+            
+            self.z_center = int(self.n_cells / 2)
+            self.thickness = thickness
+            
+            density0 = self.density_hist[self.indices[0]]
+            
+            heatmap = np.sum(
+                density0[:, :, self.z_center-self.thickness:self.z_center+self.thickness+1],
+                axis=2
+            )   + 0.00001# (remove later on, already calculate self.density when initializing)
+                    
+                    
+            all_maps = np.array([
+                d[:, :, self.z_center-self.thickness:self.z_center+self.thickness+1].sum(axis=2)
+                for d in self.density_hist
+            ])
 
-    #     all_max = np.percentile(
-    #         all_maps,
-    #         99.5
-    #     )        
-        
-    #     # all_max = max(
-    #     #     d[:, :, self.z_center-self.thickness:self.z_center+self.thickness+1].sum(axis=2).max()
-    #     #     for d in self.density_hist
-    #     # )
+            self.all_min = np.percentile(
+                all_maps[all_maps > 0],
+                5
+            )
 
-    #     # all_min = min(
-    #     #     d[:, :, self.z_center-self.thickness:self.z_center+self.thickness+1].sum(axis=2)[d[:, :, self.z_center-self.thickness:self.z_center+self.thickness+1].sum(axis=2) > 0].min()
-    #     #     for d in self.density_hist
-    #     # )
-     
-    #     self.im = self.ax.imshow(
-    #         heatmap.T,
-    #         origin="lower",
-    #         cmap=cosmo_cmap,
-    #         norm=LogNorm(vmin=all_min, vmax=all_max)
-    #     )
+            self.all_max = np.percentile(
+                all_maps,
+                99.9
+            )        
+            
+            heatmap = np.maximum(heatmap, self.all_min) ## Deals with 0 values
+            heatmap = np.minimum(heatmap, self.all_max)
+            
+            self.im = self.ax.imshow(
+                heatmap.T,
+                origin="lower",
+                cmap=self.cosmo_cmap,
+                norm=LogNorm(vmin=self.all_min, vmax=self.all_max), 
+                interpolation = "nearest",
+                resample=False
+            )
+            
+            ani = FuncAnimation(
+                fig,
+                self._update_animation,
+                frames=len(self.indices),
+                interval=100,
+                blit=False,
+                repeat=True
+            )
         
-    #     self.indices = np.linspace(
-    #         0,
-    #         len(self.density_hist)-1,
-    #         100,
-    #         dtype=int
-    #     )
+            plt.colorbar(self.im, label='Projected density')
+            plt.xlabel('x')
+            plt.ylabel('y')
+            
+            
+            ani.save(
+                f"animations/slice/{name}.gif",
+                writer="pillow",
+                fps=fps
+            )
+            
+            plt.show()
         
-    #     ani = FuncAnimation(
-    #         fig,
-    #         self._update_animation,
-    #         frames=len(self.indices),
-    #         interval=100,
-    #         blit=False,
-    #         repeat=False
-    #     )
-        
+        plt.close('all')
 
-    #     plt.colorbar(self.im, label='Projected density')
-    #     plt.xlabel('x')
-    #     plt.ylabel('y')
-    #     plt.show()
+    def _calculate_power_spectrum(self):
+        """Calculate the power spectrum of the density field. 
+        One can compare this to theoretical predictions or other simulations for validation.
+        The basic idea is to calculate the density field in real space, transform to Fourier space and average the squared amplitudes of the Fourier modes in spherical shells.
+        It is assumed that the power spectrum is isotropic.
+        """
+        delta_real = self.density / np.mean(self.density) - 1.0
+        delta_k = np.fft.fftn(delta_real)
         
-    #     ani.save(
-    #         "animations/cosmology.gif",
-    #         writer="pillow",
-    #         fps=20
-    #     )
+        N = self.density.shape[0]
         
-    #     plt.close('all')
+        PowerSpectrum_k_grid = np.abs(delta_k)**2
+        
+        kx = 2*np.pi*np.fft.fftfreq(N, d=self.n_cells/N) # This spacing correct?
+        ky = 2*np.pi*np.fft.fftfreq(N, d=self.n_cells/N)
+        kz = 2*np.pi*np.fft.fftfreq(N, d=self.n_cells/N)
 
+        KX, KY, KZ = np.meshgrid(
+            kx, ky, kz,
+            indexing="ij"
+        )
+
+        kmag = np.sqrt(
+            KX**2 + KY**2 + KZ**2
+        )
+        
+        k_bins = np.logspace(
+            np.log10(np.min(kmag[kmag > 0])),
+            np.log10(np.max(kmag)),
+            50
+        )
+    
+        PowerSpectrum_k = np.zeros(len(k_bins)-1)
+        k_centres = np.zeros(len(k_bins)-1)
+        
+        for i in range(len(k_bins)-1):
+            k_low = k_bins[i]
+            k_high = k_bins[i+1]
+
+            mask = (
+                (kmag >= k_low) &
+                (kmag < k_high)
+            )
+
+            PowerSpectrum_k[i] = np.mean(
+                PowerSpectrum_k_grid[mask]
+            )
+
+            k_centres[i] = np.sqrt(
+                k_low * k_high
+            )
+        
+        ## Add sth to remove the CIC distortion
+        
+        
+        return PowerSpectrum_k, k_centres
+    
     def save_checkpoint(self):
         pass
 
