@@ -23,6 +23,7 @@ from matplotlib import scale
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from PIL import Image
 import pandas as pd
 from scipy import fft
 from cosmosim.utils import potential_to_acceleration_numba, interpolate_density_cic_numba, interpolate_acceleration_cic_numba
@@ -287,7 +288,7 @@ class Universe:
         if store == True:
             print('Storing positions and momenta..')
             for _ in tqdm(range(steps)):
-                self.positions_hist.append(self.positions.copy())
+                # self.positions_hist.append(self.positions.copy())
                 # self.momenta_hist.append(self.momenta.copy())
                 self.density_hist.append(self.density.copy())
                 self.scale_factor_hist.append(self.scale_factor) ## Need to copy instead of adding this reference here
