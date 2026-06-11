@@ -54,9 +54,11 @@ if __name__ == '__main__':
     test.generate_ics(amplitude='normalized')
 
     # Run for 900 steps until a=1, today
+    print("Initialization done, commencing runs...")
     test.run(steps=900, store = True)
     
     # Visualize evolution, Final state (as plot) and Power Spectrum
+    print("Plotting Power Spectrum with CloudInCell correction")
     Power_spectrum, k_bins = test._calculate_power_spectrum()
     plt.scatter(k_bins, Power_spectrum)
     plt.xscale('log')
@@ -67,6 +69,7 @@ if __name__ == '__main__':
     plt.grid()
     plt.show()
     
+    print("Plotting Power Spectrum without CloudInCell correction")
     Power_spectrum, k_bins = test._calculate_power_spectrum(cic_correction=False)
     plt.scatter(k_bins, Power_spectrum)
     plt.xscale('log')
@@ -77,5 +80,7 @@ if __name__ == '__main__':
     plt.grid()
     plt.show()
     
+    print("Finally, here some animation of the evolution (slices projection)")
     test.plot_animation(three_D=False, gridoff=True)
+    print("... and the final state.")
     test.plot()

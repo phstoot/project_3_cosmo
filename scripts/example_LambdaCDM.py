@@ -1,21 +1,17 @@
 ###############################################
 # EXAMPLE RUN: Show basic application of simulatio:
-# This script runs a random simulation, 
-# visualizes the analysis methods, 
-# follows the same script with ΛCDM initial conditions.
+# This script runs a simultion with ΛCDM initial conditions.
 #
 # outputs: 
-#  - various 3D and sliced plots
-#  - various 3D and sliced animations
-#  - Power spectrum plots
+#  - 3D plots
+#  -  sliced animations
+#  - Power spectrum plots (with and without CIC correction)
 ###############################################
 
 from time import sleep
 import matplotlib.pyplot as plt
 from cosmosim.utils import section, spacer
-
 import numpy as np
-import matplotlib.pyplot as plt
 from cosmosim.simulation import Universe
 
 #######################################
