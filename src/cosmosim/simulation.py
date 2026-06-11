@@ -1035,7 +1035,7 @@ class Universe:
                 frames.append(image.convert("RGB"))
             
             frames[0].save(
-                f"animations/3d/{name}.gif",
+                f"{name}.gif",
                 save_all=True,
                 append_images=frames[1:],
                 loop=0,
