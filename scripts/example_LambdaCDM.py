@@ -96,27 +96,3 @@ if __name__ == '__main__':
     print("... and the final state.")
     test.plot()
 
-
-
-
-# Run for 900 steps
-
-
-# Visualize evolution, Final state (as plot) and Power Spectrum
-
-
-
-## Initialize \lambda CDM simulation
-
-
-# Same steps as before
-
-
-
-# Some comment on this (what changed? Filaments observed? Requires bigger model)
-
-
-
-
-
-# Potentially bigger simulation
