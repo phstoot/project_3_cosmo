@@ -45,13 +45,13 @@ class Universe:
 
     Algorithm per step
     ------------------
-    1. Density assignment    : NGP or CIC mass deposition onto n_cells³ mesh.
-    2. Poisson solver        : FFT-based solution of ∇²φ = (3/2)(Ω_m/a)δ,
+    1: Density assignment    : NGP or CIC mass deposition onto n_cells³ mesh.
+    2: Poisson solver        : FFT-based solution of ∇²φ = (3/2)(Ω_m/a)δ,
                                using a discrete Green function.
-    3. Force computation     : negative central finite-difference gradient of φ.
-    4. Force interpolation   : same scheme as density assignment (NGP or CIC).
-    5. Leapfrog kick         : p_{n+1/2} = p_{n-1/2} + f(aₙ) g_n Δa.
-    6. Leapfrog drift        : x_{n+1}   = x_n + f(a_{n+1/2}) p_{n+1/2} / a²_{n+1/2} Δa.
+    3: Force computation     : negative central finite-difference gradient of φ.
+    4: Force interpolation   : same scheme as density assignment (NGP or CIC).
+    5: Leapfrog kick         : p_{n+1/2} = p_{n-1/2} + f(aₙ) g_n Δa.
+    6: Leapfrog drift        : x_{n+1}   = x_n + f(a_{n+1/2}) p_{n+1/2} / a²_{n+1/2} Δa.
 
     Positions are in comoving cell units [0, n_cells). The canonical momentum p
     is defined such that dx/da = f(a) p / a², where
@@ -117,8 +117,7 @@ class Universe:
     -----
     - The Green function denominator is precomputed in __init__ and cached as
       _G_denom since the sin² terms are time-independent.
-    - Numba JIT compilation is triggered on the first run() call and amortised
-      over all subsequent steps.
+    - Numba JIT compilation is triggered on the first run() call and used in step
     - Radiation (Ω_r) is neglected throughout.
 
     Examples
@@ -135,7 +134,7 @@ class Universe:
     >>> sim = Universe(n_particles=32, n_cells=64, omega_0m=1)
     >>> sim.plane_wave_1D_test(a_ini=0.1, a_cross=1.0)
     """
-    
+
     def __init__(
             self,
             n_particles: int        = 32,
@@ -281,6 +280,25 @@ class Universe:
             raise RuntimeError("Unknown method provided. Options are: 'ngp' or 'cic'")
 
     def generate_ics(self, random: bool =False, amplitude: str ='physical', A_custom: float = 1):
+        """Compute Zeldovich-approximation initial conditions from the EH97 power
+        spectrum. Call before run(). Supports 'physical' (Aₛ-based),
+        'normalized' (σ₈-based), and 'custom' amplitude modes. 
+
+        Parameters
+        ----------
+        random : bool, optional
+            whether to use random perturbations without cosmological transfer function, by default False
+        amplitude : str, optional
+            'physical', 'normalized', 'custom': use the physical amplitude based on As, 
+            a simple normalized amplitude based on sigma8, or provide custom amplitude. By default 'physical'
+        A_custom : float, optional
+            The custom amplitude of the linear matter power spectrum to use, by default 1
+
+        Raises
+        ------
+        RuntimeError
+            _description_
+        """
         if random == True:
             print('Setting random gaussian initial perturbations without cosmological power spectrum')
             self.positions = self._init_positions()
