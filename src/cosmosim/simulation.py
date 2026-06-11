@@ -143,16 +143,55 @@ class Universe:
             scale_factor: float     = 0.1,
             delta_a: float          = 0.001,
             interpolate_method: str = 'cic',
-            h: float                = 1,
-            omega_0m: float         = 1,
+            h: float                = 0.67,
+            omega_0m: float         = 0.31,
             omega_0b: float         = 0.045,
             omega_0k: float         = 0,
-            omega_0lamb: float      = 0,
+            omega_0lamb: float      = 0.69,
             As : float              = 2.105e-9,
             ns : float              = 0.967,
             sigma8 : float          = 0.81,
             T_cmb : float           = 2.7255
     ):
+        """
+        Neat Particle-Mesh Simulation of ΛCDM universe
+        ---------- 
+        The Universe class encapsulates the state and dynamics of a cosmological N-body simulation using the Particle-Mesh method. 
+        It provides methods for initializing particle positions and momenta, interpolating density fields, solving Poisson's equation for gravitational potential, and updating particle states over time.
+        The main density interpolation method follows the Cloud in Cell algorithm, which provides a decently accurate replacement of calculating each individual force between particles.
+        Instances of the class can be run with or without animation, and one can store the history of positions and momenta of particles,
+        as well as the density and scale factor.
+        
+        The core of the simulation implements the numba JIT compiler to significantly speed up runtime.  In a 
+        standard user laptop/computer, this code should be compute 10^3 timesteps in less than a minute for a 64^3 sized system.
+        
+        Parameters
+        --------
+        n_particles : int
+            number of particles per dimension, by default 32
+        n_cells : int
+            number of cells per dimension, by default 64
+        redshift : float, optional
+            redshift, by default 1
+        scale_factor : float
+            initial scale factor of the simulation, by default 0.1
+        delta_a: float
+            increases in scale factor per timestep, by default 0.001
+        time_period: tuple
+        interpolate_method : str 
+            density interpolation algorithm, by default 'cic'
+        h : float                
+            little h for Hubble constant, by default 0.67
+        omega_0m : float 
+            Matter fraction, by default 0.31
+        omega_0b: float         
+            Baryon fraction, by default 0.045
+        omega_0k: float   
+            Curvature, by default 0
+        omega_0lamb: float   
+            Dark Energy fraction, by default 0.69
+            
+        """
         
         # assign attributes
         self.n_particles            = n_particles 
@@ -194,8 +233,6 @@ class Universe:
         self.density_hist           = [] # Maybe not necessary
         self.scale_factor_hist      = []
 
-
-# think of checks!
 
     def __repr__(self):
         #TODO when code finished, fix this
@@ -250,6 +287,13 @@ class Universe:
 
     def _init_momenta(self) -> np.ndarray:
         """Compute initial momenta with a backward half-kick for leapfrog synchronisation.
+
+        Side effects
+        ------------
+        Populates self.density, self.potential, self.acceleration_grid, and
+        self.acceleration_particles as a by-product of computing g₀. These are left
+        in a valid state and reused on the first call to step().
+
         Returns
         -------
         momenta : np.ndarray, shape (n_particles**3, 3)
@@ -262,7 +306,15 @@ class Universe:
     def interpolate_density(self) -> None:
         """Interpolate the mesh density field from the current particle positions, using the Nearest Grid Point (NPG) method.
         This simply means giving the parent grid cell the mass of the particle.
-        comment on speed: for ngp we use numpy vectorization. np.add.at is the equivalent of +=.
+        For speeding up computation, ngp is used for numpy vectorization. np.add.at is the equivalent of +=.
+        
+        Parameters
+        ----------
+        None
+        
+        Returns
+        -------
+        None
         """
         self.density.fill(0.0)
         if self.interpolate_method == 'ngp':
