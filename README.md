@@ -6,7 +6,7 @@ This project is an effort to perform a small cosmological simulation as a study 
 
 The code is structured as a small Python package with separate modules, along with scripts to reproduce the results used in the report.
 
-The code includes animations, highlighting the formation of filaments in the simulated universe.
+The code includes animations, highlighting the formation of filaments in the simulated universe. Some exemplary gifs are store under animation/.
 
 
 
