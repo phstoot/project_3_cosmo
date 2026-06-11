@@ -268,8 +268,23 @@ class Universe:
         self.update_positions()
         self.scale_factor += self.delta_a
 
-    def run(self, steps : int = 900, numba=True, store=False) -> None:
-        """Main method to run simulation instance
+    def run(self, steps : int = 900, numba=True, store=False, interval: int = 5) -> None:
+        """Main method to run simulation instance.
+        
+        Parameters
+        ---------
+        steps : int
+            Number of steps to run the simulation for.
+        numba : bool   
+            If numba should be used for computation.
+        store : bool
+            If True, position, density and scale factor are stored per interval.
+        interval : int
+            Determines the interval at which quantities are stored.
+            
+        Returns
+        --------
+        None        
         """
         self._status = 1
         print('Starting cosmological particle-mesh simulation...\n')
@@ -283,10 +298,11 @@ class Universe:
         if store == True:
             print('Storing positions and momenta..')
             for _ in tqdm(range(steps)):
-                # self.positions_hist.append(self.positions.copy())
-                # self.momenta_hist.append(self.momenta.copy())
-                self.density_hist.append(self.density.copy())
-                self.scale_factor_hist.append(self.scale_factor) ## Need to copy instead of adding this reference here
+                if _ % interval == 0:
+                    self.positions_hist.append(self.positions.copy())
+                    # self.momenta_hist.append(self.momenta.copy())
+                    self.density_hist.append(self.density.copy())
+                    self.scale_factor_hist.append(self.scale_factor)
                 self.step(numba=numba)
         else:
             for _ in tqdm(range(steps)):
@@ -502,7 +518,7 @@ class Universe:
             vmin = np.percentile(density[density > 0], 5)
             vmax = np.percentile(density, 99.5)
             
-            self.ax.scatter(self.positions[:,0], self.positions[:,1], self.positions[:,2], s=1, c=density, cmap = cosmo_cmap, norm = LogNorm(vmin=vmin, vmax=vmax)) # type: ignore
+            self.ax.scatter(self.positions[:,0], self.positions[:,1], self.positions[:,2], s=0.2, c=density, cmap = cosmo_cmap, norm = LogNorm(vmin=vmin, vmax=vmax)) # type: ignore
             self.ax.set_title(f"3D particle distribution with density-based colouring, a={self.scale_factor:.3f}")
             
             if gridoff:
@@ -540,6 +556,7 @@ class Universe:
             plt.colorbar(label='Projected density')
             plt.xlabel('x')
             plt.ylabel('y')
+            plt.title(f"Projected density heatmap, a={self.scale_factor:.3f}")
             plt.show()
         
         plt.close('all')
@@ -561,8 +578,6 @@ class Universe:
         
         idx = self.indices[frame]
         density = self.density_hist[idx]
-        
-        # density = self.density_hist[self.indices[frame]]
 
         if self.three_D:
             idx = self.indices[frame]
@@ -588,7 +603,7 @@ class Universe:
             self.scatter.set_array(
                 particle_density
             )
-
+            
             self.title.set_text(
                 f"3D particle distribution with density-based colouring, a = {self.scale_factor_hist[idx]:.3f}"
             )
@@ -605,12 +620,12 @@ class Universe:
                 density[:, :, self.z_center-self.thickness:self.z_center+self.thickness+1],
                 axis=2)
             
-            print(
+            print("Density stats for frame {}: min = {:.5f}, max = {:.5f}, sum = {:.5f}".format(
                 frame,
                 np.min(heatmap),
                 np.max(heatmap),
                 np.sum(heatmap)
-            )
+            ))
 
             heatmap = np.maximum(heatmap, self.all_min)
             heatmap = np.minimum(heatmap, self.all_max)
@@ -618,7 +633,7 @@ class Universe:
 
             return (self.im,)     
         
-    def plot_animation(self, three_D: bool = False, gridoff: bool = False, thickness: int = 3, batch_interval: int = 5, fps: int = 20, name: str = "cosmology"):
+    def plot_animation(self, three_D: bool = False, gridoff: bool = False, thickness: int = 3, batch_interval: int = 1, fps: int = 20, name: str = "cosmology"):
         """Animated version of plotting the evolution of the particle distribution. 
         Two different plotting versions, one 3D scatter with density-based colouring and one 2D heatmap of the projected density. 
         Requires storing of position and density arrays when using run() with store=True.
@@ -671,17 +686,12 @@ class Universe:
         self.gridoff = gridoff
         
         if three_D:    
-            dens = np.asarray(self.density_hist)
-            
-            self.all_min = np.percentile(
-                dens[dens > 0],
-                5
-            )
+            ## A bit inaccurate way of finding percentiles but less memory-intensive.
+            mins = [np.min(d[d > 0]) for d in self.density_hist]
+            maxs = [np.max(d) for d in self.density_hist]
 
-            self.all_max = np.percentile(
-                dens,
-                99.9
-            )     
+            self.all_min = np.percentile(mins, 5)
+            self.all_max = np.percentile(maxs, 99.9)
             
             self.norm = LogNorm(vmin=self.all_min, vmax=self.all_max)
             
@@ -705,7 +715,7 @@ class Universe:
                 pos0[:,1],
                 pos0[:,2],
                 c=density0,
-                s=1,
+                s=0.2,
                 cmap=self.cosmo_cmap,
                 norm=self.norm
             )
@@ -847,7 +857,7 @@ class Universe:
         delta_k = np.fft.fftn(delta_real)
         
         N = self.density.shape[0]
-        dx = self.n_cells / N
+        dx = self.n_cells / N  ### This formula is not exactly correct, it should be L_box / N where N is grid resolution. 
         
         kx = 2*np.pi*np.fft.fftfreq(N, d=dx) # This spacing correct?
         ky = 2*np.pi*np.fft.fftfreq(N, d=dx)
@@ -862,9 +872,15 @@ class Universe:
             KX**2 + KY**2 + KZ**2
         )
         
+        print(f"K-magnitude range: {np.min(kmag[kmag > 0])} to {np.max(kmag)}")
+        
+        k_nyquist = np.pi / dx
+        kmin = np.min(kmag[kmag > 0])
+        kmax = min(k_nyquist, np.max(kmag))
+        
         k_bins = np.logspace(
-            np.log10(np.min(kmag[kmag > 0])),
-            np.log10(np.max(kmag)),
+            np.log10(kmin),
+            np.log10(kmax),
             50
         )
 
