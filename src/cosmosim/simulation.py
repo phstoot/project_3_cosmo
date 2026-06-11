@@ -233,30 +233,42 @@ class Universe:
         self.density_hist           = [] # Maybe not necessary
         self.scale_factor_hist      = []
 
-
     def __repr__(self):
-        #TODO when code finished, fix this
         return (
-            f"Universe(n_particles={self.n_particles}, "
-            f"n_cells={self.n_cells}, redshift={self.get_redshift()}, scale_factor={self.scale_factor},"
-            f" _status={self._status})"
-            )
-    
+            f"Universe("
+            f"n_particles={self.n_particles}, "
+            f"n_cells={self.n_cells}, "
+            f"boxlength={self.boxlength}, "
+            f"scale_factor={self.scale_factor_start}, "
+            f"delta_a={self.delta_a}, "
+            f"interpolate_method='{self.interpolate_method}', "
+            f"h={self.h}, "
+            f"omega_0m={self.omega_0m}, "
+            f"omega_0b={self.omega_0b}, "
+            f"omega_0k={self.omega_0k}, "
+            f"omega_0lamb={self.omega_0lamb})"
+        )
+
     def __str__(self):
-        #TODO when code finished, fix this
         status_map = {0: "Initialized", 1: "Running", 2: "Complete"}
-        status_str = status_map.get(self._status, "! Unknown !")
+        status_str = status_map.get(self._status, "Unknown")
         return (
-            f"{'='*50}\n"
-            f"Cosmological Particle-Mesh N-Body Simulation Object\n"
-            f"{'='*50}\n\n"
-            f"Status: {status_str}\n"
-            f"Redshift: z = {self.get_redshift():.4f}\n"
-            f"Scale factor: a = {self.scale_factor:.4f}\n\n"
-            f"Parameters:\n"
-            f"  Particles: {self.n_particles}³\n"
-            f"  Grid cells: {self.n_cells}³\n"
-            f"  Timestep (da): {self.delta_a}\n"
+            f"{'='*52}\n"
+            f"  Cosmological PM N-Body Simulation\n"
+            f"{'='*52}\n"
+            f"  Status        : {status_str}\n"
+            f"  Scale factor  : a = {self.scale_factor:.4f}  (started: {self.scale_factor_start:.4f})\n"
+            f"  Redshift      : z = {self.get_redshift():.4f}\n"
+            f"{'─'*52}\n"
+            f"  Particles     : {self.n_particles}³ = {self.n_particles**3:,}\n"
+            f"  Grid          : {self.n_cells}³,  method: {self.interpolate_method.upper()}\n"
+            f"  Box           : {self.boxlength:.1f} Mpc/h,  Δa = {self.delta_a}\n"
+            f"{'─'*52}\n"
+            f"  Ω_m = {self.omega_0m:.4f}   Ω_Λ = {self.omega_0lamb:.4f}   "
+            f"Ω_k = {self.omega_0k:.4f}\n"
+            f"  h   = {self.h:.4f}   σ₈  = {self.sigma8:.4f}   "
+            f"nₛ  = {self.ns:.4f}\n"
+            f"{'='*52}"
         )
 
     def get_redshift(self):
@@ -962,7 +974,7 @@ class Universe:
             self.all_min = np.percentile(mins, 5)
             self.all_max = np.percentile(maxs, 99.9)
             
-            self.norm = LogNorm(vmin=self.all_min, vmax=self.all_max)
+            self.norm = LogNorm(vmin=self.all_min, vmax=self.all_max) #type: ignore
             
             ## First frame
             idx0 = self.indices[0]
@@ -984,7 +996,7 @@ class Universe:
                 pos0[:,1],
                 pos0[:,2],
                 c=density0,
-                s=0.2,
+                s=0.2, #type: ignore
                 cmap=self.cosmo_cmap,
                 norm=self.norm
             )
@@ -1018,7 +1030,7 @@ class Universe:
                 self._update_animation(i)
                 self.ax.figure.canvas.draw()
                 
-                buf = self.ax.figure.canvas.buffer_rgba()
+                buf = self.ax.figure.canvas.buffer_rgba() #type: ignore
                 image = Image.frombytes("RGBA", self.ax.figure.canvas.get_width_height(), buf)
                 frames.append(image.convert("RGB"))
             
@@ -1074,7 +1086,7 @@ class Universe:
                 heatmap.T,
                 origin="lower",
                 cmap=self.cosmo_cmap,
-                norm=LogNorm(vmin=self.all_min, vmax=self.all_max), 
+                norm=LogNorm(vmin=self.all_min, vmax=self.all_max), #type: ignore
                 interpolation = "nearest",
                 resample=False
             )

@@ -9,11 +9,11 @@ from astropy import units as u
 #######################################
 # MODEL PARAMETERS -> global variables
 
-n_particles = 32
-n_cells = 64
-a_ini = 0.05
+n_particles = 250
+n_cells = 500
+a_ini = 0.1
 delta_a = 0.001
-L_box = 64.0  # Mpc/h
+L_box = 1000  # Mpc/h
 
 
 # physical constants and variables
@@ -39,11 +39,7 @@ k_grid = np.sqrt(kx**2 + ky**2 + kz**2)
 k_grid_safe = np.where(k_grid == 0.0, 1.0, k_grid)  # Prevent 0/0 division
 
 
-# Amplitude calculation
-def tophat_window(k, R=8.0):
-    x = k * R
-    # Handle the limit x -> 0 smoothly to avoid 0/0 errors
-    return np.where(x < 1e-3, 1.0, 3.0 * (np.sin(x) - x * np.cos(x)) / (x**3))
+
 
 # 1. Create a fine 1D array of physical k values for integration
 k_integration = np.logspace(-4, 2, 2000) # h/Mpc
@@ -141,7 +137,7 @@ test.positions = positions
 test.momenta = momenta
 # test.plot()
 test.run(steps=900, numba=True, store=False)
-test.plot()
+# test.plot()
 test.plot_colour(thickness=1)
 Power_Spectrum, k_bins = test._calculate_power_spectrum()
 
