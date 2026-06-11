@@ -38,24 +38,26 @@ class Universe:
             self,
             n_particles: int        = 32,
             n_cells: int            = 64, 
-            redshift: float         = 1,
+            boxlength: float        = 64,
             scale_factor: float     = 0.1,
-            delta_a: float          = 0.001, # decide later, we also need to change to use scale factor as timestep
-            time_period: tuple      = (0, 10),
+            delta_a: float          = 0.001,
             interpolate_method: str = 'cic',
             h: float                = 1,
             omega_0m: float         = 1,
             omega_0b: float         = 0.045,
             omega_0k: float         = 0,
-            omega_0lamb: float      = 0
+            omega_0lamb: float      = 0,
+            As : float              = 2.105e-9,
+            ns : float              = 0.967,
+            sigma8 : float          = 0.81,
+            T_cmb : float           = 2.7255
     ):
         
         # assign attributes
         self.n_particles            = n_particles 
         self.n_cells                = n_cells
+        self.boxlength              = boxlength
         self.mass                   = self.n_cells**3 / self.n_particles**3 # normalize density field
-        self.time_period            = time_period
-        self.redshift               = redshift
         self.scale_factor_start     = scale_factor
         self.scale_factor           = scale_factor
         self.delta_a                = delta_a
@@ -69,6 +71,10 @@ class Universe:
         self.omega_0lamb             = omega_0lamb # dark energy
         self.omega_0r                = 0
         self.h                       = h
+        self.As                      = As
+        self.ns                      = ns
+        self.sigma8                  = sigma8
+        self.T_cmb                   = T_cmb
 
         # initialize
         self._G_denom               = self._greenfunc_denom() # cache for speedup, stays the same for all simulation
@@ -79,6 +85,7 @@ class Universe:
         self.positions              = np.zeros((self.n_particles**3, 3))   #= self._init_positions()
         self.momenta                = np.zeros((self.n_particles**3, 3))   #= self._init_momenta()
         self._status                = 0 # let's work with numerical codes: 0 = initialized, 1 = running and 2 = complete or smth like that
+        self.z                      = self.get_redshift()
 
         # storage
         self.positions_hist         = []
@@ -93,8 +100,8 @@ class Universe:
         #TODO when code finished, fix this
         return (
             f"Universe(n_particles={self.n_particles}, "
-            f"n_cells={self.n_cells}, redshift={self.redshift}, scale_factor={self.scale_factor},"
-            f"time_current=TODO, _status={self._status})"
+            f"n_cells={self.n_cells}, redshift={self.get_redshift()}, scale_factor={self.scale_factor},"
+            f" _status={self._status})"
             )
     
     def __str__(self):
@@ -106,8 +113,7 @@ class Universe:
             f"Cosmological Particle-Mesh N-Body Simulation Object\n"
             f"{'='*50}\n\n"
             f"Status: {status_str}\n"
-            f"Time: t = ??? / {self.time_period[1]:.4f}\n"
-            f"Redshift: z = {self.redshift:.4f}\n"
+            f"Redshift: z = {self.get_redshift():.4f}\n"
             f"Scale factor: a = {self.scale_factor:.4f}\n\n"
             f"Parameters:\n"
             f"  Particles: {self.n_particles}³\n"
@@ -115,8 +121,12 @@ class Universe:
             f"  Timestep (da): {self.delta_a}\n"
         )
 
+    def get_redshift(self):
+        """Get redshift from scale factor"""
+        return 1/self.scale_factor - 1
+
     def _init_positions(self) -> np.ndarray:
-        """Initialize particle positions. For now, we use random perturbations. We should use appropriate initial conditions.
+        """Initialize particle positions. Use random perturbations, no power spectrum.
         """
         positions = []
         fill_axis = np.linspace(0, self.n_cells, self.n_particles, endpoint=False)
@@ -139,30 +149,14 @@ class Universe:
 
     def _init_momenta(self) -> np.ndarray:
         """Compute initial momenta with a backward half-kick for leapfrog synchronisation.
-
-        Side effects
-        ------------
-        Populates self.density, self.potential, self.acceleration_grid, and
-        self.acceleration_particles as a by-product of computing g₀. These are left
-        in a valid state and reused on the first call to step().
-
         Returns
         -------
         momenta : np.ndarray, shape (n_particles**3, 3)
         """
-        # for initial setup
-        # momenta = np.zeros((self.n_particles**3, 3))
-        # # Do an initial half-kick back so that momenta is on correct scale-factor for leapfrog integration
-        # self.interpolate_density()
-        # self.poisson_solver()
-        # self.potential_to_acceleration()
-        # self.interpolate_acceleration()
-        # momenta -= 0.5 * self.timestep_factor(self.scale_factor) * self.acceleration_particles * self.delta_a
-
         # following random gaussian seeds:
-        momenta = self.displacement * self.scale_factor**1.5
-        return momenta
-    
+        a_half = self.scale_factor_start - 0.5 * self.delta_a
+        momenta = self.displacement * a_half**1.5
+        return momenta 
 
     def interpolate_density(self) -> None:
         """Interpolate the mesh density field from the current particle positions, using the Nearest Grid Point (NPG) method.
@@ -184,6 +178,104 @@ class Universe:
         else:
             raise RuntimeError("Unknown method provided. Options are: 'ngp' or 'cic'")
 
+    def generate_ics(self, random: bool =False, amplitude: str ='physical', A_custom: float = 1):
+        if random == True:
+            print('Setting random gaussian initial perturbations without cosmological power spectrum')
+            self.positions = self._init_positions()
+            self.momenta = self._init_momenta()
+            pass
+        
+        if amplitude == 'physical':
+            A = amplitude_physical(
+                self.scale_factor_start,
+                self.h,
+                self.As,
+                self.omega_0m,
+                self.omega_0k,
+                self.omega_0lamb,
+                self.ns,
+            )
+        elif amplitude == 'normalized':
+            A = amplitude_normalized(
+                self.scale_factor_start,
+                self.h,
+                self.sigma8,
+                self.omega_0m,
+                self.omega_0k,
+                self.omega_0lamb,
+                self.ns, 
+                self.T_cmb
+            )
+        elif amplitude == 'custom':
+            if A_custom == 1:
+                print('A_custom = 1. Did you forget to provide a value?')
+            A = A_custom
+        else:
+            raise RuntimeError("Unknown option provided for amplitude. Choose 'physical', 'normalized' or 'custom'")
+        
+        # FS wave parameters and arrays
+        dk = 2.0 * np.pi / self.boxlength # define fundamental wave mode with physical units
+
+        k_axis = np.fft.fftfreq(self.n_cells) * self.n_cells * dk
+        kx, ky, kz = np.meshgrid(k_axis, k_axis, k_axis, indexing='ij')
+        k_grid = np.sqrt(kx**2 + ky**2 + kz**2)
+        k_grid_safe = np.where(k_grid == 0.0, 1.0, k_grid)  # Prevent 0/0 division
+
+        # calculate power spectrum with analytical formula
+        powerspectrum_EdS = eh97_power_spectrum(
+            k_grid,
+            h=self.h,
+            omega_m=self.omega_0m,
+            omega_b=self.omega_0b,
+            omega_nu=0,
+            n=self.ns,
+            A=A,
+            N_nu=1,
+            T_cmb=self.T_cmb
+        )
+
+        # generate random numbers and initialize three grids
+        rng = np.random.default_rng(20260610)
+        gauss_noise_real = (np.sqrt(powerspectrum_EdS) * rng.normal(0, 1, size=k_grid.shape)) / k_grid_safe**2
+        gauss_noise_imag = (np.sqrt(powerspectrum_EdS) * rng.normal(0, 1, size=k_grid.shape)) / k_grid_safe**2
+        c_k = 0.5 * (gauss_noise_real - 1j * gauss_noise_imag)
+
+        alpha = self.n_cells**3 / self.boxlength**3
+        S_x = np.real(np.fft.ifftn(kx * c_k)) * alpha
+        S_y = np.real(np.fft.ifftn(ky * c_k)) * alpha
+        S_z = np.real(np.fft.ifftn(kz * c_k)) * alpha
+
+
+        # now apply Zeldovich Approximation to regular grid 
+        # 1D unperturbed grid coordinates
+        q_1d = np.linspace(0, self.n_cells, self.n_particles, endpoint=False)
+
+        # Compute the momentum scaling factor
+        a_half = self.scale_factor_start - 0.5 * self.delta_a
+        p_factor = a_half**2 * growth_factor_deriv(a_half, omega_0m=self.omega_0m, omega_0k=self.omega_0k, omega_0lamb=self.omega_0lamb)
+
+        positions = []
+        momenta = []
+        # Single nested loop to sample the 3D S_x, S_y, S_z grids
+        for i in range(self.n_particles):
+            for j in range(self.n_particles):
+                for k in range(self.n_particles):
+                    # Calculate displaced positions
+                    x = q_1d[i] + growth_factor(self.scale_factor_start, self.omega_0m, self.omega_0k, self.omega_0lamb) * S_x[i, j, k]
+                    y = q_1d[j] + growth_factor(self.scale_factor_start, self.omega_0m, self.omega_0k, self.omega_0lamb) * S_y[i, j, k]
+                    z = q_1d[k] + growth_factor(self.scale_factor_start, self.omega_0m, self.omega_0k, self.omega_0lamb) * S_z[i, j, k]
+                    positions.append([x, y, z])
+                    
+                    # Calculate initial momenta (matching the displacement sign!)
+                    px = p_factor * S_x[i, j, k]
+                    py = p_factor * S_y[i, j, k]
+                    pz = p_factor * S_z[i, j, k]
+                    momenta.append([px, py, pz])
+        self.positions = np.array(positions)
+        self.momenta = np.array(momenta)
+        self.positions %= self.n_cells
+        print('Succesfully initialized positions and momenta using cosmological power spectrum. Ready for run()')
+  
     def poisson_solver(self) -> None:
         """Solve Poisson's equation with the estimated density and calculate the potential. We first calculate the overdensity delta(r), then
         transform to Fourier space using scipy.fft, we compute the potential with the appropriate Green function and transform back to real 
@@ -447,7 +539,7 @@ class Universe:
         plt.close()
 
 
-    def plot(self):
+    def plot(self, mode='show', fname=f'3d.png'):
         print(self)
         print("---> Plotting...")
         fig = plt.figure(figsize=(9,9)) 
@@ -457,7 +549,12 @@ class Universe:
         self.ax.set_ylabel('y')
         self.ax.set_zlabel('z')
         self.ax.scatter(self.positions[:,0], self.positions[:,1], self.positions[:,2], s=0.1, c='black') # type: ignore
-        plt.show()
+        if mode == 'show':
+            plt.show()
+        elif mode == 'save':
+            plt.savefig(fname, dpi=300)
+        else:
+            raise UserWarning("unknown mode provided. Choose 'show' or 'save'")
         plt.close('all')
         
     def plot_colour(self, three_D: bool = False, gridoff: bool = False, thickness: int = 3, time_interval: int = 5):
@@ -594,7 +691,7 @@ class Universe:
             
             
             
-            self.scatter._offsets3d = (
+            self.scatter._offsets3d = ( #type: ignore
                 pos[:,0],
                 pos[:,1],
                 pos[:,2]
