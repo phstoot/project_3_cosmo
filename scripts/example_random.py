@@ -1,3 +1,13 @@
+###############################################
+# EXAMPLE RUN: Show basic application of simulatio:
+# This script runs a simultion with random initial conditions.
+#
+# outputs: 
+#  - 3D plots
+#  -  sliced animations
+#  - Power spectrum plots (with and without CIC correction)
+###############################################
+
 import numpy as np
 import matplotlib.pyplot as plt
 from cosmosim.simulation import Universe

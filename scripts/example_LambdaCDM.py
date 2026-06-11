@@ -1,5 +1,5 @@
 ###############################################
-# EXAMPLE RUN: Show basic application of simulatio:
+# EXAMPLE RUN: Show basic application of simulation:
 # This script runs a simultion with ΛCDM initial conditions.
 #
 # outputs: 

@@ -30,7 +30,7 @@ if __name__ == '__main__':
     
     ## Initialize Lambda CDM simulation
     section("Overview")
-    print("This script demonstrates a LambdaCDM simulation.")
+    print("This script demonstrates a Einstein-de-Sitter (matter only) simulation.")
     spacer()
     sleep(1)
 
@@ -51,12 +51,13 @@ if __name__ == '__main__':
         T_cmb=T_cmb
         )
     
-    test.generate_ics(amplitude='normalized')
+    test.generate_ics(amplitude='custom', A_custom=3e6)
 
     # Run for 900 steps until a=1, today
     print("Initialization done, commencing runs...")
     test.run(steps=900, store = True)
     
+<<<<<<< HEAD
     # Visualize evolution, Final state (as plot) and Power Spectrum
     print("Plotting Power Spectrum with CloudInCell correction")
     Power_spectrum, k_bins = test._calculate_power_spectrum()
@@ -68,6 +69,18 @@ if __name__ == '__main__':
     plt.title('Power Spectrum')
     plt.grid()
     plt.show()
+=======
+    # # Visualize evolution, Final state (as plot) and Power Spectrum
+    # Power_spectrum, k_bins = test._calculate_power_spectrum()
+    # plt.scatter(k_bins, Power_spectrum)
+    # plt.xscale('log')
+    # plt.yscale('log')
+    # plt.xlabel('k')
+    # plt.ylabel('P(k)')
+    # plt.title('Power Spectrum')
+    # plt.grid()
+    # plt.show()
+>>>>>>> 1673bbd9f828cdc72be3c798d900d89b341b4f6a
     
     print("Plotting Power Spectrum without CloudInCell correction")
     Power_spectrum, k_bins = test._calculate_power_spectrum(cic_correction=False)

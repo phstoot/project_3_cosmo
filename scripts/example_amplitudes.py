@@ -63,9 +63,9 @@ if __name__ == '__main__':
         T_cmb=T_cmb
         )
     
-    test1.generate_ics(amplitude='physical')
-    test1.run(steps=900, store = True)
-    test1.plot()
+    test2.generate_ics(amplitude='physical')
+    test2.run(steps=900, store = True)
+    test2.plot()
     
     # Visualize evolution, Final state (as plot) and Power Spectrum
     Power_spectrum, k_bins = test1._calculate_power_spectrum(cic_correction=False)

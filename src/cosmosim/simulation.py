@@ -1101,7 +1101,7 @@ class Universe:
             
             
             ani.save(
-                f"animations/slice/{name}.gif",
+                f"{name}.gif",
                 writer="pillow",
                 fps=fps
             )
