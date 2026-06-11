@@ -1,19 +1,3 @@
-###############################################
-# EXAMPLE RUN: Show basic application of simulatio:
-# This script runs a random simulation, 
-# visualizes the analysis methods, 
-# follows the same script with ΛCDM initial conditions.
-#
-# outputs: 
-#  - various 3D and sliced plots
-#  - various 3D and sliced animations
-#  - Power spectrum plots
-###############################################
-
-from time import sleep
-import matplotlib.pyplot as plt
-from cosmosim.utils import section, spacer
-
 import numpy as np
 import matplotlib.pyplot as plt
 from cosmosim.simulation import Universe
@@ -41,13 +25,8 @@ sigma8_target = 0.81
 
 
 if __name__ == '__main__':
-    section("Overview")
-    print("This script demonstrates a LambdaCDM simulation.")
-    spacer()
-    sleep(1)
-
-    print("Initializing...")
-    ## Initialize Lambda CDM simulation
+    
+## Initialize Lambda CDM simulation
     
     test = Universe(
         n_particles=n_particles, 
@@ -65,15 +44,12 @@ if __name__ == '__main__':
         T_cmb=T_cmb
         )
     
-    
     test.generate_ics(amplitude='normalized')
 
     # Run for 900 steps until a=1, today
-    print("Initialization done, commencing runs...")
     test.run(steps=900, store = True)
     
     # Visualize evolution, Final state (as plot) and Power Spectrum
-    print("Plotting Power Spectrum with CloudInCell correction")
     Power_spectrum, k_bins = test._calculate_power_spectrum()
     plt.scatter(k_bins, Power_spectrum)
     plt.xscale('log')
@@ -84,7 +60,6 @@ if __name__ == '__main__':
     plt.grid()
     plt.show()
     
-    print("Plotting Power Spectrum without CloudInCell correction")
     Power_spectrum, k_bins = test._calculate_power_spectrum(cic_correction=False)
     plt.scatter(k_bins, Power_spectrum)
     plt.xscale('log')
@@ -95,32 +70,5 @@ if __name__ == '__main__':
     plt.grid()
     plt.show()
     
-    print("Finally, here some animation of the evolution (slices projection)")
     test.plot_animation(three_D=False, gridoff=True)
-    print("... and the final state.")
     test.plot()
-
-
-
-
-# Run for 900 steps
-
-
-# Visualize evolution, Final state (as plot) and Power Spectrum
-
-
-
-## Initialize \lambda CDM simulation
-
-
-# Same steps as before
-
-
-
-# Some comment on this (what changed? Filaments observed? Requires bigger model)
-
-
-
-
-
-# Potentially bigger simulation

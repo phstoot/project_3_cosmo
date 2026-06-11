@@ -10,7 +10,7 @@ if __name__ == '__main__':
     test.positions = test._init_positions()
     test.momenta = test._init_momenta()
     # test.plot_colour(three_D=True, gridoff=True)
-    test.run(steps=1500, store = True)
+    test.run(steps=900, store = True)
     # print("Colour map with gist_earth")
     
     # Power_spectrum, k_bins = test._calculate_power_spectrum()
