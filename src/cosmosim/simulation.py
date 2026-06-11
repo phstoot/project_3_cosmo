@@ -363,12 +363,6 @@ class Universe:
         RuntimeError
             _description_
         """
-        if random == True:
-            print('Setting random gaussian initial perturbations without cosmological power spectrum')
-            self.positions = self._init_positions()
-            self.momenta = self._init_momenta()
-            pass
-        
         if amplitude == 'physical':
             A = amplitude_physical(
                 self.scale_factor_start,
@@ -458,7 +452,14 @@ class Universe:
         self.positions = np.array(positions)
         self.momenta = np.array(momenta)
         self.positions %= self.n_cells
-        print('Succesfully initialized positions and momenta using cosmological power spectrum. Ready for run()')
+        # print('Succesfully initialized positions and momenta using cosmological power spectrum. Ready for run()')
+
+        if random == True:
+            print('Setting random gaussian initial perturbations without cosmological power spectrum')
+            # simply overwrite arrays
+            self.positions = self._init_positions()
+            self.momenta = self._init_momenta()
+
   
     def poisson_solver(self) -> None:
         """Solve Poisson's equation with the estimated density and calculate the potential. We first calculate the overdensity delta(r), then
@@ -702,7 +703,7 @@ class Universe:
         plt.legend()
         plt.xlabel(r'$x$')
         plt.ylabel(r'$p$')
-        plt.title(f'ZA test: 1D sine wave collapse\na = {a_ini:.1f}')
+        plt.title(f'ZA test: 1D sine wave collapse\na = {a_ini:.1f}, interpolation: {interpolate_method}')
         plt.show()
         plt.close()
 
