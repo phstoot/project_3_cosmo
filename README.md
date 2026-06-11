@@ -72,7 +72,12 @@ project/
 │   └── utils.py        # Utilities
 │
 ├── scripts/
-│   └── interactive.py  # Use package interactively
+│   └── 1D_sinewavetest.py  # Use package interactively
+│   └── analyse_data.py  # Use package interactively
+│   └── example_amplitudes.py  # Use package interactively
+│   └── example_eds.py  # Use package interactively
+│   └── example_LambdaCDM.py  # Use package interactively
+│   └── example_random.py  # Use package interactively
 │
 ├── data/             # Output data (generated)
 ├── results/          # post-processed results (generated)
@@ -83,8 +88,19 @@ project/
 ---
 
 ## Reproducing Results
+To reproduce the results from the presentation, here are some files to run:
 
-To reproduce the results from the presentation, ...
+### 1. Basic Results
+1D_sinewavetest.py
+analyse_data.py: Analyze data from longer data run.
+example_amplitudes.py
+example_eds.py
+example_LambdaCDM.py
+example_random.py
+
+
+### 2. Conduct a larger simultion of the LambdaCDM model
+Please keep in mind that this might require some time.
 
 
 ---
