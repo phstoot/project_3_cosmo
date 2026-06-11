@@ -1,6 +1,8 @@
 # Our stuff:
 .DS_Store
-
+*.png
+*.pdf
+*.npy
 
 ###################################
 # Github python .gitignore template

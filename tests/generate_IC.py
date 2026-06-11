@@ -9,8 +9,8 @@ from astropy import units as u
 #######################################
 # MODEL PARAMETERS -> global variables
 
-n_particles = 16
-n_cells = 32
+n_particles = 250
+n_cells = 500
 a_ini = 0.1
 delta_a = 0.001
 L_box = 1000  # Mpc/h
@@ -39,17 +39,13 @@ k_grid = np.sqrt(kx**2 + ky**2 + kz**2)
 k_grid_safe = np.where(k_grid == 0.0, 1.0, k_grid)  # Prevent 0/0 division
 
 
-# Amplitude calculation
-def tophat_window(k, R=8.0):
-    x = k * R
-    # Handle the limit x -> 0 smoothly to avoid 0/0 errors
-    return np.where(x < 1e-3, 1.0, 3.0 * (np.sin(x) - x * np.cos(x)) / (x**3))
+
 
 # 1. Create a fine 1D array of physical k values for integration
 k_integration = np.logspace(-4, 2, 2000) # h/Mpc
 
 # 2. Evaluate your unnormalized spectrum (A=1) along this 1D array
-pk_unnorm = eh97_power_spectrum(k_integration, omega_m=omega_0m, omega_b=omega_0b, h=h, A=1.0, omega_nu=0, n=ns, N_nu=1, T_cmb = T_cmb)
+pk_unnorm = eh97_power_spectrum(k_integration, omega_m=omega_0m, omega_b=0.045, h=h, A=1.0, omega_nu=0, n=ns, N_nu=1, T_cmb = T_cmb)
 
 # 3. Integrate to find the unnormalized sigma_8
 window = tophat_window(k_integration, R=8.0)
@@ -86,7 +82,7 @@ def alpha_norm(n_cells, box_length): #TODO: check if works for different cell un
 
 
 # generate random numbers and initialize three grids
-rng = np.random.default_rng()
+rng = np.random.default_rng(20260610)
 gauss_noise_real = (np.sqrt(powerspectrum_EdS) * rng.normal(0, 1, size=k_grid.shape)) / k_grid_safe**2
 gauss_noise_imag = (np.sqrt(powerspectrum_EdS) * rng.normal(0, 1, size=k_grid.shape)) / k_grid_safe**2
 c_k = 0.5 * (gauss_noise_real - 1j * gauss_noise_imag)
@@ -142,31 +138,31 @@ test.momenta = momenta
 # test.plot()
 test.run(steps=900, numba=True, store=False)
 # test.plot()
-# test.plot_colour(thickness=1)
-np.save('../data/finalpositions_1Gpc.npy', test.positions)
-np.save('../data/finaldensity_1Gpc.npy', test.density)
+test.plot_colour(thickness=1)
+Power_Spectrum, k_bins = test._calculate_power_spectrum()
 
-# Power_Spectrum, k_bins = test._calculate_power_spectrum()
-
-# plt.scatter(k_bins, Power_Spectrum)
-# plt.xscale('log')
-# plt.yscale('log')
-# plt.xlabel('k')
-# plt.ylabel('P(k)')
-# plt.title('Power Spectrum')
-# plt.grid()
-# plt.show()
+plt.scatter(k_bins, Power_Spectrum, label='Measured P(k)')
+plt.xscale('log')
+plt.yscale('log')
+plt.xlabel('k')
+plt.ylabel('P(k)')
+plt.legend()
+plt.title('Power Spectrum')
+plt.grid()
+plt.show()
 
 Power_Spectrum2, k_bins2 = test._calculate_power_spectrum(cic_correction=False)
 
-plt.scatter(k_bins2, Power_Spectrum2)
+plt.scatter(k_bins2, Power_Spectrum2, label='P(k) without CIC correction')
 plt.xscale('log')
 plt.yscale('log')
 plt.xlabel('k')
 plt.ylabel('P(k)')
 plt.title('Power Spectrum')
+plt.legend()
 plt.grid()
-plt.savefig('../results/powerspectrum_1Gpc.pdf')
+plt.grid()
+plt.show()
 
 
 # A_test = amplitude_physical(
