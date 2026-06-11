@@ -34,7 +34,30 @@ pip install .
 
 ## Model and Simulation Details
 
-To do: write text here
+For a generic analysis of the ΛCDM universe, we simulate the universe with the following choices:
+
+* Particle Number per dim: ( $n_p = 32$ )
+* Lattice size: ( 64 $\times$ 64 $\times$ 64 )
+* redshift: ( $z = 1$ )
+* Initial Scale Factor: ( $a = 0.1$ )
+* Matter fraction: ( $\Omega_{0m} = 0.31$ )
+* Baryon fraction: ( $\Omega_{0b} = 0.045$ )
+* Dark Energy fraction: ( $\Omega_{0lamb} = 0.69$ )
+* Curvature: ( $\Omega_{0k} = 0$ )
+* "Little h": ( $h = 0.67$ )
+* Boundary conditions: periodic
+* Density Interpolation Method: Cloud in Cell
+* Spin representation: angles ( $\theta \in [0, 2\pi]$ )
+
+
+### Implementation and reproducability notes
+
+* The simulation is accelerated using **Numba JIT compilation**
+* The density interpolation necessary for the Poisson solver is done with Cloud in Cell.
+* One can store simulation parameters like density, scale_factor by choosing store=True in run().
+* By default, particles are distributed evenly over the grid and displaced by a random step. However, one can also manually implement the initial parameters, as was done for the ΛCDM model.
+* The outcome as one approaches modern age is highly sensitive to the initial conditions, even regarding the general form of clustering. Fine tuning is therefore required to properly replicated the data.  
+The universe is initialized 
 
 
 ---
