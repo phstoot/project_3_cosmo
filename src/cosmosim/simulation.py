@@ -1016,9 +1016,13 @@ class Universe:
                 k_low * k_high
             )
         
-          
+        power_shot_noise = (self.n_cells)**3 / self.positions.shape[0]
         
-        return power_spec_k, k_centres
+        corrected_power_spectrum = np.maximum(
+            power_spec_k - power_shot_noise,
+            0
+        )
+        return corrected_power_spectrum, k_centres
     
     def save_checkpoint(self):
         pass
