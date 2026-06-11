@@ -418,11 +418,10 @@ class Universe:
         gauss_noise_imag = (np.sqrt(powerspectrum_EdS) * rng.normal(0, 1, size=k_grid.shape)) / k_grid_safe**2
         c_k = 0.5 * (gauss_noise_real - 1j * gauss_noise_imag)
 
-        alpha = self.n_cells**3 / self.boxlength**3
+        alpha = self.n_cells**3 / np.sqrt(self.boxlength**3)
         S_x = np.real(np.fft.ifftn(kx * c_k)) * alpha
         S_y = np.real(np.fft.ifftn(ky * c_k)) * alpha
         S_z = np.real(np.fft.ifftn(kz * c_k)) * alpha
-
 
         # now apply Zeldovich Approximation to regular grid 
         # 1D unperturbed grid coordinates
@@ -586,7 +585,7 @@ class Universe:
                 self.step(numba=numba) 
        
         self._status = 2
-        print('Done, bye.')
+        print('Done, bye.\n\n')
 
     def reset(self):
         """Method to reset the simulation instance. 
