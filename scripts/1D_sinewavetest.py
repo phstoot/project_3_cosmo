@@ -24,6 +24,8 @@ if __name__ == '__main__':
         omega_0lamb=0
         )
     test_ngp.plane_wave_1D_test(0.1, 1, interpolate_method='ngp')
+    
+    test_ngp.plot()
 
     test_cic = Universe(
         n_particles=n_particles, 
@@ -34,3 +36,5 @@ if __name__ == '__main__':
         omega_0lamb=0
         )
     test_cic.plane_wave_1D_test(0.1, 1, interpolate_method='cic') 
+    
+    test_cic.plot()

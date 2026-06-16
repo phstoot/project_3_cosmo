@@ -703,7 +703,11 @@ class Universe:
         plt.plot(x_exact_ini, p_exact_ini, label='analytic', zorder=-1)
         plt.scatter(x_sim_ini, p_sim_ini, label='numerical', marker='d', c='black')
         plt.legend()
-        plt.xlabel(r'$x$')
+        plt.xlabel(r'$x\, [\mathrm{Mpc/h}]$')
+        scale = self.boxlength / self.n_cells
+        ticks = np.linspace(0, self.n_cells, 6)
+        plt.xticks(ticks, [f"{t*scale:.0f}" for t in ticks])
+        
         plt.ylabel(r'$p$')
         plt.title(f'ZA test: 1D sine wave collapse\na = {a_ini:.1f}, interpolation: {interpolate_method}')
         plt.show()
@@ -721,7 +725,12 @@ class Universe:
         plt.plot(x_exact_cross, p_exact_cross, label='analytic', zorder=-1)
         plt.scatter(x_sim_cross, p_sim_cross, label='numerical', marker='d', c='black')
         plt.legend()
-        plt.xlabel(r'$x$')
+        plt.xlabel(r'$x\, [\mathrm{Mpc/h}]$')
+        scale = self.boxlength / self.n_cells
+        ticks = np.linspace(0, self.n_cells, 6)
+        plt.xticks(ticks, [f"{t*scale:.0f}" for t in ticks])
+        
+        
         plt.ylabel(r'$p$')
         plt.title(f'ZA test: 1D sine wave collapse\na = {a_cross:.1f}, interpolation: {interpolate_method}')
         plt.show()
