@@ -729,10 +729,29 @@ class Universe:
         fig = plt.figure(figsize=(9,9)) 
         self.ax = fig.add_subplot(projection='3d')
         self.ax.set_aspect('equal')
-        self.ax.set_xlabel('x')
-        self.ax.set_ylabel('y')
-        self.ax.set_zlabel('z')
+        self.ax.set_xlabel(r'x [$\mathrm{Mpc/h}$]')
+        self.ax.set_ylabel(r'y  [$\mathrm{Mpc/h}$]')
+        self.ax.set_zlabel(r'z  [$\mathrm{Mpc/h}$]')
+        plt.title(rf"Particle Distribution: a={self.scale_factor:.3f}, ${self.n_particles}^3$ particles")
         self.ax.scatter(self.positions[:,0], self.positions[:,1], self.positions[:,2], s=0.1, c='black') # type: ignore
+        
+        scale = self.boxlength / self.n_cells
+        ticks = np.linspace(0, self.n_cells, 6)
+        self.ax.set_xticks(ticks)
+        self.ax.set_yticks(ticks)
+        self.ax.set_zticks(ticks)
+
+        self.ax.set_xticklabels(
+            [f"{t*scale:.0f}" for t in ticks]
+        )
+        self.ax.set_yticklabels(
+            [f"{t*scale:.0f}" for t in ticks]
+        )
+        self.ax.set_zticklabels(
+            [f"{t*scale:.0f}" for t in ticks]
+        )
+        
+        
         if mode == 'show':
             plt.show()
         elif mode == 'save':
@@ -769,8 +788,8 @@ class Universe:
                 (0.00, "#000000"),  # black
                 (0.25, "#001a66"),  # dark blue
                 (0.55, "#0066ff"),  # blue
-                (0.85, "#66ffff"),  # cyan
-                (1.00, "#76ff7d"),  # green
+                (0.75, "#66ffff"),  # cyan
+                (1.00, "#ffffff"),  # green
             ]
         )  
         
@@ -782,9 +801,9 @@ class Universe:
             fig = plt.figure(figsize=(9,9)) 
             self.ax = fig.add_subplot(projection='3d')
             self.ax.set_aspect('equal')
-            self.ax.set_xlabel('x')
-            self.ax.set_ylabel('y')
-            self.ax.set_zlabel('z')
+            self.ax.set_xlabel(r'x  [$\mathrm{Mpc/h}$]')
+            self.ax.set_ylabel(r'y  [$\mathrm{Mpc/h}$]')
+            self.ax.set_zlabel(r'z  [$\mathrm{Mpc/h}$]')
         
             tree = cKDTree(self.positions)
 
@@ -800,7 +819,24 @@ class Universe:
             vmax = np.percentile(density, 99.5)
             
             self.ax.scatter(self.positions[:,0], self.positions[:,1], self.positions[:,2], s=0.2, c=density, cmap = cosmo_cmap, norm = LogNorm(vmin=vmin, vmax=vmax)) # type: ignore
-            self.ax.set_title(f"3D particle distribution with density-based colouring, a={self.scale_factor:.3f}")
+            self.ax.set_title(rf"3D particle distribution with density-based colouring, a={self.scale_factor:.3f}, ${self.n_particles}^3$ particles")
+            
+            scale = self.boxlength / self.n_cells
+            ticks = np.linspace(0, self.n_cells, 6)
+            self.ax.set_xticks(ticks)
+            self.ax.set_yticks(ticks)
+            self.ax.set_zticks(ticks)
+
+            self.ax.set_xticklabels(
+                [f"{t*scale:.0f}" for t in ticks]
+            )
+            self.ax.set_yticklabels(
+                [f"{t*scale:.0f}" for t in ticks]
+            )
+            self.ax.set_zticklabels(
+                [f"{t*scale:.0f}" for t in ticks]
+            )
+            
             
             if gridoff:
                 self.ax.grid(False)
@@ -820,6 +856,9 @@ class Universe:
                 self.density[:, :, z_center-thickness:z_center+thickness+1],
                 axis=2
             )   + 0.00001# (remove later on, already calculate self.density when initializing)
+            # Mass density
+            dx = self.boxlength / self.n_cells
+            heatmap = heatmap / dx**2
             
             vmin = np.percentile(heatmap[heatmap > 0], 5)
             vmax = np.percentile(heatmap, 99.5)
@@ -834,10 +873,15 @@ class Universe:
                 cmap=cosmo_cmap,
                 norm=LogNorm(vmin=vmin, vmax=vmax)
             )
-            plt.colorbar(label='Projected density')
-            plt.xlabel('x')
-            plt.ylabel('y')
-            plt.title(f"Projected density heatmap, a={self.scale_factor:.3f}")
+            plt.colorbar(label=r'Projected density [$M_\odot\,{\rm Mpc}^{-2}$]')
+            plt.xlabel(r'x  [$\mathrm{Mpc/h}$]')
+            plt.ylabel(r'y  [$\mathrm{Mpc/h}$]')
+            scale = self.boxlength / self.n_cells
+            ticks = np.linspace(0, self.n_cells, 6)
+            plt.xticks(ticks, [f"{t*scale:.0f}" for t in ticks])
+            plt.yticks(ticks, [f"{t*scale:.0f}" for t in ticks])
+            
+            plt.title(rf"Projected density heatmap, a={self.scale_factor:.3f}, ${self.n_particles}^3$ particles")
             plt.show()
         
         plt.close('all')
@@ -871,8 +915,10 @@ class Universe:
             iz = np.floor(pos[:,2]).astype(int) % self.n_cells
 
             particle_density = grid[ix, iy, iz]
+            # Mass density
+            dx = self.boxlength / self.n_cells
+            particle_density = particle_density / dx**3
             particle_density = np.clip(particle_density, self.all_min, self.all_max)
-            
             
             
             self.scatter._offsets3d = ( #type: ignore
@@ -900,6 +946,9 @@ class Universe:
             heatmap = np.sum(
                 density[:, :, self.z_center-self.thickness:self.z_center+self.thickness+1],
                 axis=2)
+            # Mass density
+            dx = self.boxlength / self.n_cells
+            heatmap = heatmap / dx**2   
             
             # print("Density stats for frame {}: min = {:.5f}, max = {:.5f}, sum = {:.5f}".format(
             #     frame,
@@ -911,8 +960,12 @@ class Universe:
             heatmap = np.maximum(heatmap, self.all_min)
             heatmap = np.minimum(heatmap, self.all_max)
             self.im.set_data(heatmap.T)
+            
+            self.title.set_text(
+                rf"Projected density heatmap, a={self.scale_factor_hist[idx]:.3f}, ${self.n_particles}^3$ particles"
+            )
 
-            return (self.im,)     
+            return (self.im, self.title)     
         
     def plot_animation(self, three_D: bool = False, gridoff: bool = False, thickness: int = 3, batch_interval: int = 1, fps: int = 20, name: str = "cosmology"):
         """Animated version of plotting the evolution of the particle distribution. 
@@ -949,7 +1002,7 @@ class Universe:
                 (0.25, "#001a66"),  # dark blue
                 (0.55, "#0066ff"),  # blue
                 (0.85, "#66ffff"),  # cyan
-                (1.00, "#76ff7d"),  # green
+                (1.00, "#ffffff"),  # green
             ]
         )        
         
@@ -968,8 +1021,10 @@ class Universe:
         
         if three_D:    
             ## A bit inaccurate way of finding percentiles but less memory-intensive.
-            mins = [np.min(d[d > 0]) for d in self.density_hist]
-            maxs = [np.max(d) for d in self.density_hist]
+            # Mass density
+            dx = self.boxlength / self.n_cells
+            mins = [np.min(d[d > 0] / (dx**3)) for d in self.density_hist]
+            maxs = [np.max(d / (dx**3)) for d in self.density_hist]
 
             self.all_min = np.percentile(mins, 5)
             self.all_max = np.percentile(maxs, 99.9)
@@ -987,6 +1042,9 @@ class Universe:
             iz = np.floor(pos0[:,2]).astype(int) % self.n_cells
 
             density0 = grid0[ix, iy, iz]
+            # Mass density
+            dx = self.boxlength / self.n_cells
+            density0 = density0 / dx**3
 
             self.fig = plt.figure(figsize=(9, 9))
             self.ax = self.fig.add_subplot(projection="3d")
@@ -1001,13 +1059,29 @@ class Universe:
                 norm=self.norm
             )
 
-            self.ax.set_xlabel("x")
-            self.ax.set_ylabel("y")
-            self.ax.set_zlabel("z")
+            self.ax.set_xlabel(r"x  [$\mathrm{Mpc/h}$]")
+            self.ax.set_ylabel(r"y  [$\mathrm{Mpc/h}$]")
+            self.ax.set_zlabel(r"z  [$\mathrm{Mpc/h}$]")
 
             self.ax.set_xlim(0,self.n_cells)
             self.ax.set_ylim(0, self.n_cells)
             self.ax.set_zlim(0, self.n_cells)
+            
+            scale = self.boxlength / self.n_cells
+            ticks = np.linspace(0, self.n_cells, 6)
+            self.ax.set_xticks(ticks)
+            self.ax.set_yticks(ticks)
+            self.ax.set_zticks(ticks)
+
+            self.ax.set_xticklabels(
+                [f"{t*scale:.0f}" for t in ticks]
+            )
+            self.ax.set_yticklabels(
+                [f"{t*scale:.0f}" for t in ticks]
+            )
+            self.ax.set_zticklabels(
+                [f"{t*scale:.0f}" for t in ticks]
+            )
             
             self.title = self.ax.set_title(
                 f"3D particle distribution with density-based colouring, a = {self.scale_factor_hist[idx0]:.3f}"
@@ -1021,8 +1095,7 @@ class Universe:
                 self.ax._axis3don = False
             
             else: 
-                self.fig.colorbar(mappable = self.ax.collections[0], label='Projected density')
-            
+                self.fig.colorbar(mappable = self.ax.collections[0], label=r'Density [$M_\odot\,{\mathrm{Mpc}}^{-3}$]')
             ## Actual animation update
             frames = []
 
@@ -1057,15 +1130,17 @@ class Universe:
                 density0[:, :, self.z_center-self.thickness:self.z_center+self.thickness+1],
                 axis=2
             )   + 0.00001# (remove later on, already calculate self.density when initializing)
-                    
+            # Mass density
+            dx = self.boxlength / self.n_cells
+            heatmap = heatmap / dx**2                
                     
             all_maps = np.array([
-                d[:, :, self.z_center-self.thickness:self.z_center+self.thickness+1].sum(axis=2)
+                d[:, :, self.z_center-self.thickness:self.z_center+self.thickness+1].sum(axis=2) / dx**2
                 for d in self.density_hist
             ])
 
             self.all_min = np.percentile(
-                all_maps[all_maps > 0],
+                all_maps[all_maps > 0]  / dx**2,
                 5
             )
 
@@ -1076,6 +1151,10 @@ class Universe:
             
             heatmap = np.maximum(heatmap, self.all_min) ## Deals with 0 values
             heatmap = np.minimum(heatmap, self.all_max)
+            
+            self.title = self.ax.set_title(
+                rf"Projected density heatmap, a={self.scale_factor_hist[self.indices[0]]:.3f}, ${self.n_particles}^3$ particles"
+            )
             
             self.im = self.ax.imshow(
                 heatmap.T,
@@ -1095,9 +1174,22 @@ class Universe:
                 repeat=True
             )
         
-            plt.colorbar(self.im, label='Projected density')
-            plt.xlabel('x')
-            plt.ylabel('y')
+            plt.colorbar(self.im, label=r'Projected density [$M_\odot\,{\rm Mpc}^{-2}$]')
+            plt.xlabel(r'x  [$\mathrm{Mpc/h}$]')
+            plt.ylabel(r'y  [$\mathrm{Mpc/h}$]')
+            
+            scale = self.boxlength / self.n_cells
+            ticks = np.linspace(0, self.n_cells, 6)
+            self.ax.set_xticks(ticks)
+            self.ax.set_yticks(ticks)
+
+            self.ax.set_xticklabels(
+                [f"{t*scale:.0f}" for t in ticks]
+            )
+            self.ax.set_yticklabels(
+                [f"{t*scale:.0f}" for t in ticks]
+            )
+            
             
             
             ani.save(
@@ -1133,7 +1225,7 @@ class Universe:
         delta_k = np.fft.fftn(delta_real)
         
         N = self.density.shape[0]
-        dx = self.n_cells / N  ### This formula is not exactly correct, it should be L_box / N where N is grid resolution. 
+        dx = self.boxlength / N  ### This formula is not exactly correct, it should be L_box / N where N is grid resolution. 
         
         kx = 2*np.pi*np.fft.fftfreq(N, d=dx) # This spacing correct?
         ky = 2*np.pi*np.fft.fftfreq(N, d=dx)
@@ -1168,8 +1260,18 @@ class Universe:
             Wcic = Wx * Wy * Wz
             
             delta_k /= Wcic
+            
+            print("NaN:", np.sum(np.isnan(delta_k)))
+            print("inf:", np.sum(np.isinf(delta_k)))
+            print("Wcic min:", Wcic.min())
         
-        power_spec_k_grid = np.abs(delta_k)**2
+        ## Normalization
+        # Should be V / (N_grid)^6 * delta ^2
+        
+        V = self.boxlength**3
+        N_grid = self.n_cells
+        
+        power_spec_k_grid = (V / (N_grid**6)) *np.abs(delta_k)**2
         
         power_spec_k = np.zeros(len(k_bins)-1)
         k_centres = np.zeros(len(k_bins)-1)
@@ -1197,9 +1299,11 @@ class Universe:
         
         power_shot_noise = (self.n_cells)**3 / self.positions.shape[0]
         
-        corrected_power_spectrum = np.maximum(
+        power_spec_k = np.maximum(
             power_spec_k - power_shot_noise,
             0
         )
-        return corrected_power_spectrum, k_centres
+        
+        
+        return power_spec_k , k_centres
     
