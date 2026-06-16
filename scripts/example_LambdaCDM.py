@@ -45,51 +45,146 @@ if __name__ == '__main__':
     print("Initializing...")
     ## Initialize Lambda CDM simulation
     
-    test = Universe(
-        n_particles=n_particles, 
-        n_cells=n_cells,
-        boxlength=L_box,
-        scale_factor=a_ini,
-        h=h,
-        omega_0m=omega_0m,
-        omega_0b=omega_0b,
-        omega_0k=omega_0k,
-        omega_0lamb=omega_0lamb,
-        As=As,
-        ns=ns,
-        sigma8=sigma8_target,
-        T_cmb=T_cmb
+    # Power_spectrum_data = []
+    # k_bins = []
+    
+    
+    # for i in range(5):
+    #     test = Universe(
+    #         n_particles=n_particles, 
+    #         n_cells=n_cells,
+    #         boxlength=L_box,
+    #         scale_factor=a_ini,
+    #         h=h,
+    #         omega_0m=omega_0m,
+    #         omega_0b=omega_0b,
+    #         omega_0k=omega_0k,
+    #         omega_0lamb=omega_0lamb,
+    #         As=As,
+    #         ns=ns,
+    #         sigma8=sigma8_target,
+    #         T_cmb=T_cmb
+    #         )
+        
+    #     test.generate_ics(amplitude='normalized')
+    #     Power_spectrum, k_bins = test._calculate_power_spectrum()
+            
+    
+    # test = Universe(
+    #     n_particles=n_particles, 
+    #     n_cells=n_cells,
+    #     boxlength=L_box,
+    #     scale_factor=a_ini,
+    #     h=h,
+    #     omega_0m=omega_0m,
+    #     omega_0b=omega_0b,
+    #     omega_0k=omega_0k,
+    #     omega_0lamb=omega_0lamb,
+    #     As=As,
+    #     ns=ns,
+    #     sigma8=sigma8_target,
+    #     T_cmb=T_cmb
+    #     )
+    
+    
+    # test.generate_ics(amplitude='normalized')
+
+    # # Run for 900 steps until a=1, today
+    # print("Initialization done, commencing runs...")
+    # test.run(steps=900, store = True)
+    
+    n_runs = 5
+
+    all_pk = []
+
+    for run in range(n_runs):
+
+        print(f"Run {run+1}/{n_runs}")
+
+        test = Universe(
+            n_particles=n_particles, 
+            n_cells=n_cells,
+            boxlength=L_box,
+            scale_factor=a_ini,
+            h=h,
+            omega_0m=omega_0m,
+            omega_0b=omega_0b,
+            omega_0k=omega_0k,
+            omega_0lamb=omega_0lamb,
+            As=As,
+            ns=ns,
+            sigma8=sigma8_target,
+            T_cmb=T_cmb
+            )
+
+        # no transfer function
+        test.generate_ics(amplitude='normalized')
+
+        test.run(steps=900, store=True)
+
+        pk, k_bins = test._calculate_power_spectrum()
+
+        all_pk.append(pk)
+        print(f"power spectrum for {run}: {pk}")
+        
+        print(test.scale_factor)
+
+    all_pk = np.asarray(all_pk)
+    
+    pk_mean = np.mean(all_pk, axis=0)
+    pk_std = np.std(all_pk, axis=0, ddof=1)
+    print(f"mean power spectrum: {pk_mean}")
+    print(f"std power spectrum: {pk_std}")
+
+    fig, ax1 = plt.subplots(figsize=(6,4))
+    ax1.errorbar(
+        k_bins,
+        pk_mean,
+        pk_std,
+        fmt='o',                 # marker style
+        markersize=7,
+        color="#479d2a",         # main color
+        ecolor="#63d03fff",       # lighter errorbar color
+        elinewidth=1.2,
+        capsize=3,
+        capthick=1,
+        # linestyle='--',           # connect points
+        linewidth=1,
+        alpha=0.9,
+        label="w/ CIC correction"
         )
     
+    ax1.set_ylim([min(pk_mean[pk_mean > 0]) / 1.5, 1.5 * max(pk_mean)])
     
-    test.generate_ics(amplitude='normalized')
+    plt.xscale("log")
+    plt.yscale("log")
 
-    # Run for 900 steps until a=1, today
-    print("Initialization done, commencing runs...")
-    test.run(steps=900, store = True)
+    plt.xlabel(r"$k \, [\mathrm{h Mpc^{-1}}]$")
+    plt.ylabel(r"$P(k) \, [\mathrm{(Mpc / h)^{3}}]$")
     
-    # Visualize evolution, Final state (as plot) and Power Spectrum
-    print("Plotting Power Spectrum with CloudInCell correction")
-    Power_spectrum, k_bins = test._calculate_power_spectrum()
-    plt.scatter(k_bins, Power_spectrum)
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.xlabel('k')
-    plt.ylabel('P(k)')
-    plt.title('Power Spectrum')
-    plt.grid()
+    plt.ylim()
+
+    # plt.legend()
+    plt.grid(alpha=0.3)
+    plt.title(rf"Power Spectrum, a={test.scale_factor:.3f}, ${test.n_particles}^3$ particles, $\Lambda \, CDM$ initial conditions")
+
     plt.show()
     
-    print("Plotting Power Spectrum without CloudInCell correction")
-    Power_spectrum, k_bins = test._calculate_power_spectrum(cic_correction=False)
-    plt.scatter(k_bins, Power_spectrum)
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.xlabel('k')
-    plt.ylabel('P(k)')
-    plt.title('Power Spectrum without CIC correction')
-    plt.grid()
-    plt.show()
+    
+    
+    
+    # # Visualize evolution, Final state (as plot) and Power Spectrum
+    # print("Plotting Power Spectrum with CloudInCell correction")
+    # Power_spectrum, k_bins = test._calculate_power_spectrum()
+    # plt.scatter(k_bins, Power_spectrum)
+    # plt.xscale('log')
+    # plt.yscale('log')
+    # plt.xlabel('k')
+    # plt.ylabel('P(k)')
+    # plt.title('Power Spectrum')
+    # plt.grid()
+    # plt.show()
+    
     
     print("Finally, here some animation of the evolution (slices projection)")
     test.plot_animation(three_D=False, gridoff=True)

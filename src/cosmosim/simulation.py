@@ -1279,6 +1279,24 @@ class Universe:
         power_spec_k = np.zeros(len(k_bins)-1)
         k_centres = np.zeros(len(k_bins)-1)
         
+        ### Diagnostic
+        for i in range(10):
+            mask = (
+                (kmag >= k_bins[i]) &
+                (kmag < k_bins[i+1])
+            )
+
+            print(
+                i,
+                np.sum(mask),
+                np.mean(power_spec_k_grid[mask]) if np.sum(mask) else None
+            )
+            
+        kvals = np.unique(np.round(kmag[kmag > 0], 12))
+
+        print(f"First twenty unique k_values {kvals[:20]}")   
+        print(f"First ten k bins {k_bins[:10]}")   
+        
         for i in range(len(k_bins)-1):
             k_low = k_bins[i]
             k_high = k_bins[i+1]
