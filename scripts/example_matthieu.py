@@ -78,6 +78,7 @@ if __name__ == '__main__':
     plt.ylabel('P(k)')
     plt.title('Power Spectrum')
     plt.grid()
+    plt.savefig('Powerspectrum_matthieu.pdf')
     plt.show()
     
     print("Plotting Power Spectrum without CloudInCell correction")
