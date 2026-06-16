@@ -343,7 +343,7 @@ class Universe:
         else:
             raise RuntimeError("Unknown method provided. Options are: 'ngp' or 'cic'")
 
-    def generate_ics(self, random: bool =False, amplitude: str ='physical', A_custom: float = 1):
+    def generate_ics(self, random: bool =False, amplitude: str ='physical', A_custom: float = 1, seed = None):
         """Compute Zeldovich-approximation initial conditions from the EH97 power
         spectrum. Call before run(). Supports 'physical' (Aₛ-based),
         'normalized' (σ₈-based), and 'custom' amplitude modes. 
@@ -413,7 +413,10 @@ class Universe:
         )
 
         # generate random numbers and initialize three grids
-        rng = np.random.default_rng(20260610)
+        if seed is not None:
+            rng = np.random.default_rng(seed=seed)
+        else: 
+            rng = np.random.default_rng()
         gauss_noise_real = (np.sqrt(powerspectrum_EdS) * rng.normal(0, 1, size=k_grid.shape)) / k_grid_safe**2
         gauss_noise_imag = (np.sqrt(powerspectrum_EdS) * rng.normal(0, 1, size=k_grid.shape)) / k_grid_safe**2
         c_k = 0.5 * (gauss_noise_real - 1j * gauss_noise_imag)
