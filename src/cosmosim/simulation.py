@@ -709,6 +709,8 @@ class Universe:
         plt.show()
         plt.close()
 
+        self.plot()
+
         self.run(steps=steps)
 
         x_exact_cross = q + a_cross * A * np.sin(k_wave * q)
@@ -721,7 +723,7 @@ class Universe:
         plt.legend()
         plt.xlabel(r'$x$')
         plt.ylabel(r'$p$')
-        plt.title(f'ZA test: 1D sine wave collapse\na = {a_cross:.1f}')
+        plt.title(f'ZA test: 1D sine wave collapse\na = {a_cross:.1f}, interpolation: {interpolate_method}')
         plt.show()
         plt.close()
 
@@ -1069,6 +1071,7 @@ class Universe:
             self.ax.set_xlim(0,self.n_cells)
             self.ax.set_ylim(0, self.n_cells)
             self.ax.set_zlim(0, self.n_cells)
+
             
             scale = self.boxlength / self.n_cells
             ticks = np.linspace(0, self.n_cells, 6)
@@ -1164,6 +1167,7 @@ class Universe:
                 origin="lower",
                 cmap=self.cosmo_cmap,
                 norm=LogNorm(vmin=self.all_min, vmax=self.all_max), #type: ignore
+                extent=[0, self.boxlength, 0, self.boxlength], #type: ignore
                 interpolation = "nearest",
                 resample=False
             )

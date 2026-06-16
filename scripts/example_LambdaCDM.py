@@ -21,7 +21,7 @@ n_particles = 32
 n_cells = 64
 a_ini = 0.1
 delta_a = 0.001
-L_box = 64.0  # Mpc/h
+L_box = 20  # Mpc/h
 
 # physical constants and variables
 As = 2.105e-9

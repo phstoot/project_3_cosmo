@@ -43,3 +43,8 @@ sigma8_unnorm_sq = np.trapezoid(integrand, k_integration) #type: ignore
 sigma8_target = 0.81
 A_true = (sigma8_target**2) / sigma8_unnorm_sq
 
+plt.loglog(k_integration, pk_unnorm)
+plt.title("Unnormalized power spectrum (Eisenstein & Hu, 1997)" )
+plt.xlabel('k')
+plt.ylabel('P(k)')
+plt.show()
