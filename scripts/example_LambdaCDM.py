@@ -21,7 +21,7 @@ n_particles = 32
 n_cells = 64
 a_ini = 0.1
 delta_a = 0.001
-L_box = 20  # Mpc/h
+L_box = 64  # Mpc/h
 
 # physical constants and variables
 As = 2.105e-9
@@ -119,6 +119,7 @@ if __name__ == '__main__':
 
         # no transfer function
         test.generate_ics(amplitude='normalized')
+        # test.generate_ics(amplitude='custom', A_custom=3e6)
 
         test.run(steps=900, store=True)
 
